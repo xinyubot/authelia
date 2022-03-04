@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/encoding/unicode"
 
-	"github.com/authelia/authelia/internal/configuration/schema"
-	"github.com/authelia/authelia/internal/utils"
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/utils"
 )
 
 func TestShouldCreateRawConnectionWhenSchemeIsLDAP(t *testing.T) {
@@ -26,6 +26,7 @@ func TestShouldCreateRawConnectionWhenSchemeIsLDAP(t *testing.T) {
 		schema.LDAPAuthenticationBackendConfiguration{
 			URL: "ldap://127.0.0.1:389",
 		},
+		false,
 		nil,
 		mockFactory)
 
@@ -55,6 +56,7 @@ func TestShouldCreateTLSConnectionWhenSchemeIsLDAPS(t *testing.T) {
 		schema.LDAPAuthenticationBackendConfiguration{
 			URL: "ldaps://127.0.0.1:389",
 		},
+		false,
 		nil,
 		mockFactory)
 
@@ -83,13 +85,14 @@ func TestEscapeSpecialCharsFromUserInput(t *testing.T) {
 		schema.LDAPAuthenticationBackendConfiguration{
 			URL: "ldaps://127.0.0.1:389",
 		},
+		false,
 		nil,
 		mockFactory)
 
-	// No escape
+	// No escape.
 	assert.Equal(t, "xyz", ldapClient.ldapEscape("xyz"))
 
-	// Escape
+	// Escape.
 	assert.Equal(t, "test\\,abc", ldapClient.ldapEscape("test,abc"))
 	assert.Equal(t, "test\\5cabc", ldapClient.ldapEscape("test\\abc"))
 	assert.Equal(t, "test\\2aabc", ldapClient.ldapEscape("test*abc"))
@@ -115,6 +118,7 @@ func TestEscapeSpecialCharsInGroupsFilter(t *testing.T) {
 			URL:          "ldaps://127.0.0.1:389",
 			GroupsFilter: "(|(member={dn})(uid={username})(uid={input}))",
 		},
+		false,
 		nil,
 		mockFactory)
 
@@ -174,11 +178,12 @@ func TestShouldCheckLDAPServerExtensions(t *testing.T) {
 			UsersFilter:          "(|({username_attribute}={input})({mail_attribute}={input}))",
 			UsernameAttribute:    "uid",
 			MailAttribute:        "mail",
-			DisplayNameAttribute: "displayname",
+			DisplayNameAttribute: "displayName",
 			Password:             "password",
 			AdditionalUsersDN:    "ou=users",
 			BaseDN:               "dc=example,dc=com",
 		},
+		false,
 		nil,
 		mockFactory)
 
@@ -210,7 +215,7 @@ func TestShouldCheckLDAPServerExtensions(t *testing.T) {
 
 	gomock.InOrder(dialURL, connBind, searchOIDs, connClose)
 
-	err := ldapClient.checkServer()
+	err := ldapClient.StartupCheck()
 	assert.NoError(t, err)
 
 	assert.True(t, ldapClient.supportExtensionPasswdModify)
@@ -230,11 +235,12 @@ func TestShouldNotEnablePasswdModifyExtension(t *testing.T) {
 			UsersFilter:          "(|({username_attribute}={input})({mail_attribute}={input}))",
 			UsernameAttribute:    "uid",
 			MailAttribute:        "mail",
-			DisplayNameAttribute: "displayname",
+			DisplayNameAttribute: "displayName",
 			Password:             "password",
 			AdditionalUsersDN:    "ou=users",
 			BaseDN:               "dc=example,dc=com",
 		},
+		false,
 		nil,
 		mockFactory)
 
@@ -266,7 +272,7 @@ func TestShouldNotEnablePasswdModifyExtension(t *testing.T) {
 
 	gomock.InOrder(dialURL, connBind, searchOIDs, connClose)
 
-	err := ldapClient.checkServer()
+	err := ldapClient.StartupCheck()
 	assert.NoError(t, err)
 
 	assert.False(t, ldapClient.supportExtensionPasswdModify)
@@ -286,11 +292,12 @@ func TestShouldReturnCheckServerConnectError(t *testing.T) {
 			UsersFilter:          "(|({username_attribute}={input})({mail_attribute}={input}))",
 			UsernameAttribute:    "uid",
 			MailAttribute:        "mail",
-			DisplayNameAttribute: "displayname",
+			DisplayNameAttribute: "displayName",
 			Password:             "password",
 			AdditionalUsersDN:    "ou=users",
 			BaseDN:               "dc=example,dc=com",
 		},
+		false,
 		nil,
 		mockFactory)
 
@@ -298,7 +305,7 @@ func TestShouldReturnCheckServerConnectError(t *testing.T) {
 		DialURL(gomock.Eq("ldap://127.0.0.1:389"), gomock.Any()).
 		Return(mockConn, errors.New("could not connect"))
 
-	err := ldapClient.checkServer()
+	err := ldapClient.StartupCheck()
 	assert.EqualError(t, err, "could not connect")
 
 	assert.False(t, ldapClient.supportExtensionPasswdModify)
@@ -318,11 +325,12 @@ func TestShouldReturnCheckServerSearchError(t *testing.T) {
 			UsersFilter:          "(|({username_attribute}={input})({mail_attribute}={input}))",
 			UsernameAttribute:    "uid",
 			MailAttribute:        "mail",
-			DisplayNameAttribute: "displayname",
+			DisplayNameAttribute: "displayName",
 			Password:             "password",
 			AdditionalUsersDN:    "ou=users",
 			BaseDN:               "dc=example,dc=com",
 		},
+		false,
 		nil,
 		mockFactory)
 
@@ -342,7 +350,7 @@ func TestShouldReturnCheckServerSearchError(t *testing.T) {
 
 	gomock.InOrder(dialURL, connBind, searchOIDs, connClose)
 
-	err := ldapClient.checkServer()
+	err := ldapClient.StartupCheck()
 	assert.EqualError(t, err, "could not perform the search")
 
 	assert.False(t, ldapClient.supportExtensionPasswdModify)
@@ -379,11 +387,12 @@ func TestShouldEscapeUserInput(t *testing.T) {
 			UsersFilter:          "(|({username_attribute}={input})({mail_attribute}={input}))",
 			UsernameAttribute:    "uid",
 			MailAttribute:        "mail",
-			DisplayNameAttribute: "displayname",
+			DisplayNameAttribute: "displayName",
 			Password:             "password",
 			AdditionalUsersDN:    "ou=users",
 			BaseDN:               "dc=example,dc=com",
 		},
+		false,
 		nil,
 		mockFactory)
 
@@ -414,10 +423,13 @@ func TestShouldCombineUsernameFilterAndUsersFilter(t *testing.T) {
 			AdditionalUsersDN:    "ou=users",
 			BaseDN:               "dc=example,dc=com",
 			MailAttribute:        "mail",
-			DisplayNameAttribute: "displayname",
+			DisplayNameAttribute: "displayName",
 		},
+		false,
 		nil,
 		mockFactory)
+
+	assert.True(t, ldapClient.usersFilterReplacementInput)
 
 	mockConn.EXPECT().
 		Search(NewSearchRequestMatcher("(&(uid=john)(&(objectCategory=person)(objectClass=user)))")).
@@ -456,11 +468,12 @@ func TestShouldNotCrashWhenGroupsAreNotRetrievedFromLDAP(t *testing.T) {
 			Password:             "password",
 			UsernameAttribute:    "uid",
 			MailAttribute:        "mail",
-			DisplayNameAttribute: "displayname",
+			DisplayNameAttribute: "displayName",
 			UsersFilter:          "uid={input}",
 			AdditionalUsersDN:    "ou=users",
 			BaseDN:               "dc=example,dc=com",
 		},
+		false,
 		nil,
 		mockFactory)
 
@@ -486,7 +499,7 @@ func TestShouldNotCrashWhenGroupsAreNotRetrievedFromLDAP(t *testing.T) {
 					DN: "uid=test,dc=example,dc=com",
 					Attributes: []*ldap.EntryAttribute{
 						{
-							Name:   "displayname",
+							Name:   "displayName",
 							Values: []string{"John Doe"},
 						},
 						{
@@ -530,6 +543,7 @@ func TestShouldNotCrashWhenEmailsAreNotRetrievedFromLDAP(t *testing.T) {
 			AdditionalUsersDN: "ou=users",
 			BaseDN:            "dc=example,dc=com",
 		},
+		false,
 		nil,
 		mockFactory)
 
@@ -587,11 +601,12 @@ func TestShouldReturnUsernameFromLDAP(t *testing.T) {
 			Password:             "password",
 			UsernameAttribute:    "uid",
 			MailAttribute:        "mail",
-			DisplayNameAttribute: "displayname",
+			DisplayNameAttribute: "displayName",
 			UsersFilter:          "uid={input}",
 			AdditionalUsersDN:    "ou=users",
 			BaseDN:               "dc=example,dc=com",
 		},
+		false,
 		nil,
 		mockFactory)
 
@@ -617,7 +632,7 @@ func TestShouldReturnUsernameFromLDAP(t *testing.T) {
 					DN: "uid=test,dc=example,dc=com",
 					Attributes: []*ldap.EntryAttribute{
 						{
-							Name:   "displayname",
+							Name:   "displayName",
 							Values: []string{"John Doe"},
 						},
 						{
@@ -658,11 +673,12 @@ func TestShouldUpdateUserPasswordPasswdModifyExtension(t *testing.T) {
 			Password:             "password",
 			UsernameAttribute:    "uid",
 			MailAttribute:        "mail",
-			DisplayNameAttribute: "displayname",
+			DisplayNameAttribute: "displayName",
 			UsersFilter:          "uid={input}",
 			AdditionalUsersDN:    "ou=users",
 			BaseDN:               "dc=example,dc=com",
 		},
+		false,
 		nil,
 		mockFactory)
 
@@ -716,7 +732,7 @@ func TestShouldUpdateUserPasswordPasswdModifyExtension(t *testing.T) {
 					DN: "uid=test,dc=example,dc=com",
 					Attributes: []*ldap.EntryAttribute{
 						{
-							Name:   "displayname",
+							Name:   "displayName",
 							Values: []string{"John Doe"},
 						},
 						{
@@ -738,7 +754,7 @@ func TestShouldUpdateUserPasswordPasswdModifyExtension(t *testing.T) {
 
 	gomock.InOrder(dialURLOIDs, connBindOIDs, searchOIDs, connCloseOIDs, dialURL, connBind, searchProfile, passwdModify, connClose)
 
-	err := ldapClient.checkServer()
+	err := ldapClient.StartupCheck()
 	require.NoError(t, err)
 
 	err = ldapClient.UpdatePassword("john", "password")
@@ -765,6 +781,7 @@ func TestShouldUpdateUserPasswordActiveDirectory(t *testing.T) {
 			AdditionalUsersDN:    "ou=users",
 			BaseDN:               "dc=example,dc=com",
 		},
+		false,
 		nil,
 		mockFactory)
 
@@ -822,7 +839,7 @@ func TestShouldUpdateUserPasswordActiveDirectory(t *testing.T) {
 					DN: "cn=test,dc=example,dc=com",
 					Attributes: []*ldap.EntryAttribute{
 						{
-							Name:   "displayname",
+							Name:   "displayName",
 							Values: []string{"John Doe"},
 						},
 						{
@@ -844,7 +861,7 @@ func TestShouldUpdateUserPasswordActiveDirectory(t *testing.T) {
 
 	gomock.InOrder(dialURLOIDs, connBindOIDs, searchOIDs, connCloseOIDs, dialURL, connBind, searchProfile, passwdModify, connClose)
 
-	err := ldapClient.checkServer()
+	err := ldapClient.StartupCheck()
 	require.NoError(t, err)
 
 	err = ldapClient.UpdatePassword("john", "password")
@@ -871,6 +888,7 @@ func TestShouldUpdateUserPasswordBasic(t *testing.T) {
 			AdditionalUsersDN:    "ou=users",
 			BaseDN:               "dc=example,dc=com",
 		},
+		false,
 		nil,
 		mockFactory)
 
@@ -947,7 +965,7 @@ func TestShouldUpdateUserPasswordBasic(t *testing.T) {
 
 	gomock.InOrder(dialURLOIDs, connBindOIDs, searchOIDs, connCloseOIDs, dialURL, connBind, searchProfile, passwdModify, connClose)
 
-	err := ldapClient.checkServer()
+	err := ldapClient.StartupCheck()
 	require.NoError(t, err)
 
 	err = ldapClient.UpdatePassword("john", "password")
@@ -968,11 +986,12 @@ func TestShouldCheckValidUserPassword(t *testing.T) {
 			Password:             "password",
 			UsernameAttribute:    "uid",
 			MailAttribute:        "mail",
-			DisplayNameAttribute: "displayname",
+			DisplayNameAttribute: "displayName",
 			UsersFilter:          "uid={input}",
 			AdditionalUsersDN:    "ou=users",
 			BaseDN:               "dc=example,dc=com",
 		},
+		false,
 		nil,
 		mockFactory)
 
@@ -991,7 +1010,7 @@ func TestShouldCheckValidUserPassword(t *testing.T) {
 						DN: "uid=test,dc=example,dc=com",
 						Attributes: []*ldap.EntryAttribute{
 							{
-								Name:   "displayname",
+								Name:   "displayName",
 								Values: []string{"John Doe"},
 							},
 							{
@@ -1035,11 +1054,12 @@ func TestShouldCheckInvalidUserPassword(t *testing.T) {
 			Password:             "password",
 			UsernameAttribute:    "uid",
 			MailAttribute:        "mail",
-			DisplayNameAttribute: "displayname",
+			DisplayNameAttribute: "displayName",
 			UsersFilter:          "uid={input}",
 			AdditionalUsersDN:    "ou=users",
 			BaseDN:               "dc=example,dc=com",
 		},
+		false,
 		nil,
 		mockFactory)
 
@@ -1058,7 +1078,7 @@ func TestShouldCheckInvalidUserPassword(t *testing.T) {
 						DN: "uid=test,dc=example,dc=com",
 						Attributes: []*ldap.EntryAttribute{
 							{
-								Name:   "displayname",
+								Name:   "displayName",
 								Values: []string{"John Doe"},
 							},
 							{
@@ -1078,14 +1098,14 @@ func TestShouldCheckInvalidUserPassword(t *testing.T) {
 			Return(mockConn, nil),
 		mockConn.EXPECT().
 			Bind(gomock.Eq("uid=test,dc=example,dc=com"), gomock.Eq("password")).
-			Return(errors.New("Invalid username or password")),
+			Return(errors.New("invalid username or password")),
 		mockConn.EXPECT().Close(),
 	)
 
 	valid, err := ldapClient.CheckUserPassword("john", "password")
 
 	assert.False(t, valid)
-	require.EqualError(t, err, "Authentication of user john failed. Cause: Invalid username or password")
+	require.EqualError(t, err, "authentication failed. Cause: invalid username or password")
 }
 
 func TestShouldCallStartTLSWhenEnabled(t *testing.T) {
@@ -1102,12 +1122,13 @@ func TestShouldCallStartTLSWhenEnabled(t *testing.T) {
 			Password:             "password",
 			UsernameAttribute:    "uid",
 			MailAttribute:        "mail",
-			DisplayNameAttribute: "displayname",
+			DisplayNameAttribute: "displayName",
 			UsersFilter:          "uid={input}",
 			AdditionalUsersDN:    "ou=users",
 			BaseDN:               "dc=example,dc=com",
 			StartTLS:             true,
 		},
+		false,
 		nil,
 		mockFactory)
 
@@ -1136,7 +1157,7 @@ func TestShouldCallStartTLSWhenEnabled(t *testing.T) {
 					DN: "uid=test,dc=example,dc=com",
 					Attributes: []*ldap.EntryAttribute{
 						{
-							Name:   "displayname",
+							Name:   "displayName",
 							Values: []string{"John Doe"},
 						},
 						{
@@ -1176,7 +1197,7 @@ func TestShouldParseDynamicConfiguration(t *testing.T) {
 			Password:             "password",
 			UsernameAttribute:    "uid",
 			MailAttribute:        "mail",
-			DisplayNameAttribute: "displayname",
+			DisplayNameAttribute: "displayName",
 			UsersFilter:          "(&(|({username_attribute}={input})({mail_attribute}={input})({display_name_attribute}={input}))(objectCategory=person)(objectClass=user)(!userAccountControl:1.2.840.113556.1.4.803:=2)(!pwdLastSet=0))",
 			GroupsFilter:         "(&(|(member={dn})(member={input})(member={username}))(objectClass=group))",
 			AdditionalUsersDN:    "ou=users",
@@ -1184,10 +1205,17 @@ func TestShouldParseDynamicConfiguration(t *testing.T) {
 			BaseDN:               "dc=example,dc=com",
 			StartTLS:             true,
 		},
+		false,
 		nil,
 		mockFactory)
 
-	assert.Equal(t, "(&(|(uid={input})(mail={input})(displayname={input}))(objectCategory=person)(objectClass=user)(!userAccountControl:1.2.840.113556.1.4.803:=2)(!pwdLastSet=0))", ldapClient.configuration.UsersFilter)
+	assert.True(t, ldapClient.groupsFilterReplacementInput)
+	assert.True(t, ldapClient.groupsFilterReplacementUsername)
+	assert.True(t, ldapClient.groupsFilterReplacementDN)
+
+	assert.True(t, ldapClient.usersFilterReplacementInput)
+
+	assert.Equal(t, "(&(|(uid={input})(mail={input})(displayName={input}))(objectCategory=person)(objectClass=user)(!userAccountControl:1.2.840.113556.1.4.803:=2)(!pwdLastSet=0))", ldapClient.configuration.UsersFilter)
 	assert.Equal(t, "(&(|(member={dn})(member={input})(member={username}))(objectClass=group))", ldapClient.configuration.GroupsFilter)
 	assert.Equal(t, "ou=users,dc=example,dc=com", ldapClient.usersBaseDN)
 	assert.Equal(t, "ou=groups,dc=example,dc=com", ldapClient.groupsBaseDN)
@@ -1207,7 +1235,7 @@ func TestShouldCallStartTLSWithInsecureSkipVerifyWhenSkipVerifyTrue(t *testing.T
 			Password:             "password",
 			UsernameAttribute:    "uid",
 			MailAttribute:        "mail",
-			DisplayNameAttribute: "displayname",
+			DisplayNameAttribute: "displayName",
 			UsersFilter:          "uid={input}",
 			AdditionalUsersDN:    "ou=users",
 			BaseDN:               "dc=example,dc=com",
@@ -1216,8 +1244,13 @@ func TestShouldCallStartTLSWithInsecureSkipVerifyWhenSkipVerifyTrue(t *testing.T
 				SkipVerify: true,
 			},
 		},
+		false,
 		nil,
 		mockFactory)
+
+	assert.False(t, ldapClient.groupsFilterReplacementInput)
+	assert.False(t, ldapClient.groupsFilterReplacementUsername)
+	assert.False(t, ldapClient.groupsFilterReplacementDN)
 
 	dialURL := mockFactory.EXPECT().
 		DialURL(gomock.Eq("ldap://127.0.0.1:389"), gomock.Any()).
@@ -1244,7 +1277,7 @@ func TestShouldCallStartTLSWithInsecureSkipVerifyWhenSkipVerifyTrue(t *testing.T
 					DN: "uid=test,dc=example,dc=com",
 					Attributes: []*ldap.EntryAttribute{
 						{
-							Name:   "displayname",
+							Name:   "displayName",
 							Values: []string{"John Doe"},
 						},
 						{
@@ -1285,7 +1318,7 @@ func TestShouldReturnLDAPSAlreadySecuredWhenStartTLSAttempted(t *testing.T) {
 			Password:             "password",
 			UsernameAttribute:    "uid",
 			MailAttribute:        "mail",
-			DisplayNameAttribute: "displayname",
+			DisplayNameAttribute: "displayName",
 			UsersFilter:          "uid={input}",
 			AdditionalUsersDN:    "ou=users",
 			BaseDN:               "dc=example,dc=com",
@@ -1294,6 +1327,7 @@ func TestShouldReturnLDAPSAlreadySecuredWhenStartTLSAttempted(t *testing.T) {
 				SkipVerify: true,
 			},
 		},
+		false,
 		nil,
 		mockFactory)
 

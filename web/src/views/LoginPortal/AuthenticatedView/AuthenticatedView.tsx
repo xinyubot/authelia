@@ -1,7 +1,8 @@
 import React from "react";
 
 import { Grid, makeStyles, Button } from "@material-ui/core";
-import { useHistory } from "react-router";
+import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 
 import { LogoutRoute as SignOutRoute } from "@constants/Routes";
 import LoginLayout from "@layouts/LoginLayout";
@@ -13,18 +14,19 @@ export interface Props {
 
 const AuthenticatedView = function (props: Props) {
     const style = useStyles();
-    const history = useHistory();
+    const navigate = useNavigate();
+    const { t: translate } = useTranslation("Portal");
 
     const handleLogoutClick = () => {
-        history.push(SignOutRoute);
+        navigate(SignOutRoute);
     };
 
     return (
-        <LoginLayout id="authenticated-stage" title={`Hi ${props.name}`} showBrand>
+        <LoginLayout id="authenticated-stage" title={`${translate("Hi")} ${props.name}`} showBrand>
             <Grid container>
                 <Grid item xs={12}>
                     <Button color="secondary" onClick={handleLogoutClick} id="logout-button">
-                        Logout
+                        {translate("Logout")}
                     </Button>
                 </Grid>
                 <Grid item xs={12} className={style.mainContainer}>

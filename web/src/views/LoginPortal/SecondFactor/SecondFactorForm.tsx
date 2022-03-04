@@ -1,56 +1,51 @@
 import React, { useState, useEffect } from "react";
 
 import { Grid, makeStyles, Button } from "@material-ui/core";
-import { useHistory, Switch, Route, Redirect } from "react-router";
-import u2fApi from "u2f-api";
+import { useTranslation } from "react-i18next";
+import { Route, Routes, useNavigate } from "react-router-dom";
 
 import {
     LogoutRoute as SignOutRoute,
-    SecondFactorTOTPRoute,
-    SecondFactorPushRoute,
-    SecondFactorU2FRoute,
-    SecondFactorRoute,
+    SecondFactorPushSubRoute,
+    SecondFactorTOTPSubRoute,
+    SecondFactorWebauthnSubRoute,
 } from "@constants/Routes";
 import { useNotifications } from "@hooks/NotificationsContext";
 import LoginLayout from "@layouts/LoginLayout";
 import { Configuration } from "@models/Configuration";
 import { SecondFactorMethod } from "@models/Methods";
 import { UserInfo } from "@models/UserInfo";
-import { initiateTOTPRegistrationProcess, initiateU2FRegistrationProcess } from "@services/RegisterDevice";
+import { initiateTOTPRegistrationProcess, initiateWebauthnRegistrationProcess } from "@services/RegisterDevice";
 import { AuthenticationLevel } from "@services/State";
-import { setPreferred2FAMethod } from "@services/UserPreferences";
+import { setPreferred2FAMethod } from "@services/UserInfo";
+import { isWebauthnSupported } from "@services/Webauthn";
 import MethodSelectionDialog from "@views/LoginPortal/SecondFactor/MethodSelectionDialog";
 import OneTimePasswordMethod from "@views/LoginPortal/SecondFactor/OneTimePasswordMethod";
 import PushNotificationMethod from "@views/LoginPortal/SecondFactor/PushNotificationMethod";
-import SecurityKeyMethod from "@views/LoginPortal/SecondFactor/SecurityKeyMethod";
-
-const EMAIL_SENT_NOTIFICATION = "An email has been sent to your address to complete the process.";
+import WebauthnMethod from "@views/LoginPortal/SecondFactor/WebauthnMethod";
 
 export interface Props {
     authenticationLevel: AuthenticationLevel;
-
     userInfo: UserInfo;
     configuration: Configuration;
+    duoSelfEnrollment: boolean;
 
-    onMethodChanged: (method: SecondFactorMethod) => void;
+    onMethodChanged: () => void;
     onAuthenticationSuccess: (redirectURL: string | undefined) => void;
 }
 
 const SecondFactorForm = function (props: Props) {
     const style = useStyles();
-    const history = useHistory();
+    const navigate = useNavigate();
     const [methodSelectionOpen, setMethodSelectionOpen] = useState(false);
     const { createInfoNotification, createErrorNotification } = useNotifications();
     const [registrationInProgress, setRegistrationInProgress] = useState(false);
-    const [u2fSupported, setU2fSupported] = useState(false);
+    const [webauthnSupported, setWebauthnSupported] = useState(false);
+    const { t: translate } = useTranslation("Portal");
 
-    // Check that U2F is supported.
     useEffect(() => {
-        u2fApi.ensureSupport().then(
-            () => setU2fSupported(true),
-            () => console.error("U2F not supported"),
-        );
-    }, [setU2fSupported]);
+        setWebauthnSupported(isWebauthnSupported());
+    }, [setWebauthnSupported]);
 
     const initiateRegistration = (initiateRegistrationFunc: () => Promise<void>) => {
         return async () => {
@@ -60,10 +55,10 @@ const SecondFactorForm = function (props: Props) {
             setRegistrationInProgress(true);
             try {
                 await initiateRegistrationFunc();
-                createInfoNotification(EMAIL_SENT_NOTIFICATION);
+                createInfoNotification(translate("An email has been sent to your address to complete the process"));
             } catch (err) {
                 console.error(err);
-                createErrorNotification("There was a problem initiating the registration process");
+                createErrorNotification(translate("There was a problem initiating the registration process"));
             }
             setRegistrationInProgress(false);
         };
@@ -77,7 +72,7 @@ const SecondFactorForm = function (props: Props) {
         try {
             await setPreferred2FAMethod(method);
             setMethodSelectionOpen(false);
-            props.onMethodChanged(method);
+            props.onMethodChanged();
         } catch (err) {
             console.error(err);
             createErrorNotification("There was an issue updating preferred second factor method");
@@ -85,65 +80,73 @@ const SecondFactorForm = function (props: Props) {
     };
 
     const handleLogoutClick = () => {
-        history.push(SignOutRoute);
+        navigate(SignOutRoute);
     };
 
     return (
-        <LoginLayout id="second-factor-stage" title={`Hi ${props.userInfo.display_name}`} showBrand>
+        <LoginLayout id="second-factor-stage" title={`${translate("Hi")} ${props.userInfo.display_name}`} showBrand>
             <MethodSelectionDialog
                 open={methodSelectionOpen}
                 methods={props.configuration.available_methods}
-                u2fSupported={u2fSupported}
+                webauthnSupported={webauthnSupported}
                 onClose={() => setMethodSelectionOpen(false)}
                 onClick={handleMethodSelected}
             />
             <Grid container>
                 <Grid item xs={12}>
                     <Button color="secondary" onClick={handleLogoutClick} id="logout-button">
-                        Logout
+                        {translate("Logout")}
                     </Button>
                     {" | "}
                     <Button color="secondary" onClick={handleMethodSelectionClick} id="methods-button">
-                        Methods
+                        {translate("Methods")}
                     </Button>
                 </Grid>
                 <Grid item xs={12} className={style.methodContainer}>
-                    <Switch>
-                        <Route path={SecondFactorTOTPRoute} exact>
-                            <OneTimePasswordMethod
-                                id="one-time-password-method"
-                                authenticationLevel={props.authenticationLevel}
-                                // Whether the user has a TOTP secret registered already
-                                registered={props.userInfo.has_totp}
-                                totp_period={props.configuration.totp_period}
-                                onRegisterClick={initiateRegistration(initiateTOTPRegistrationProcess)}
-                                onSignInError={(err) => createErrorNotification(err.message)}
-                                onSignInSuccess={props.onAuthenticationSuccess}
-                            />
-                        </Route>
-                        <Route path={SecondFactorU2FRoute} exact>
-                            <SecurityKeyMethod
-                                id="security-key-method"
-                                authenticationLevel={props.authenticationLevel}
-                                // Whether the user has a U2F device registered already
-                                registered={props.userInfo.has_u2f}
-                                onRegisterClick={initiateRegistration(initiateU2FRegistrationProcess)}
-                                onSignInError={(err) => createErrorNotification(err.message)}
-                                onSignInSuccess={props.onAuthenticationSuccess}
-                            />
-                        </Route>
-                        <Route path={SecondFactorPushRoute} exact>
-                            <PushNotificationMethod
-                                id="push-notification-method"
-                                authenticationLevel={props.authenticationLevel}
-                                onSignInError={(err) => createErrorNotification(err.message)}
-                                onSignInSuccess={props.onAuthenticationSuccess}
-                            />
-                        </Route>
-                        <Route path={SecondFactorRoute}>
-                            <Redirect to={SecondFactorTOTPRoute} />
-                        </Route>
-                    </Switch>
+                    <Routes>
+                        <Route
+                            path={SecondFactorTOTPSubRoute}
+                            element={
+                                <OneTimePasswordMethod
+                                    id="one-time-password-method"
+                                    authenticationLevel={props.authenticationLevel}
+                                    // Whether the user has a TOTP secret registered already
+                                    registered={props.userInfo.has_totp}
+                                    onRegisterClick={initiateRegistration(initiateTOTPRegistrationProcess)}
+                                    onSignInError={(err) => createErrorNotification(err.message)}
+                                    onSignInSuccess={props.onAuthenticationSuccess}
+                                />
+                            }
+                        />
+                        <Route
+                            path={SecondFactorWebauthnSubRoute}
+                            element={
+                                <WebauthnMethod
+                                    id="webauthn-method"
+                                    authenticationLevel={props.authenticationLevel}
+                                    // Whether the user has a Webauthn device registered already
+                                    registered={props.userInfo.has_webauthn}
+                                    onRegisterClick={initiateRegistration(initiateWebauthnRegistrationProcess)}
+                                    onSignInError={(err) => createErrorNotification(err.message)}
+                                    onSignInSuccess={props.onAuthenticationSuccess}
+                                />
+                            }
+                        />
+                        <Route
+                            path={SecondFactorPushSubRoute}
+                            element={
+                                <PushNotificationMethod
+                                    id="push-notification-method"
+                                    authenticationLevel={props.authenticationLevel}
+                                    duoSelfEnrollment={props.duoSelfEnrollment}
+                                    registered={props.userInfo.has_duo}
+                                    onSelectionClick={props.onMethodChanged}
+                                    onSignInError={(err) => createErrorNotification(err.message)}
+                                    onSignInSuccess={props.onAuthenticationSuccess}
+                                />
+                            }
+                        />
+                    </Routes>
                 </Grid>
             </Grid>
         </LoginLayout>

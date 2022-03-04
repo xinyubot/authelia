@@ -1,7 +1,6 @@
 package authentication
 
 import (
-	"io/ioutil"
 	"log"
 	"os"
 	"runtime"
@@ -11,16 +10,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/authelia/authelia/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
 )
 
 func WithDatabase(content []byte, f func(path string)) {
-	tmpfile, err := ioutil.TempFile("", "users_database.*.yaml")
+	tmpfile, err := os.CreateTemp("", "users_database.*.yaml")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	defer os.Remove(tmpfile.Name()) // Clean up
+	defer os.Remove(tmpfile.Name()) // Clean up.
 
 	if _, err := tmpfile.Write(content); err != nil {
 		tmpfile.Close()

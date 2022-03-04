@@ -1,9 +1,10 @@
 import React, { useEffect, useCallback, useState } from "react";
 
 import { Typography, makeStyles } from "@material-ui/core";
-import { Redirect } from "react-router";
+import { useTranslation } from "react-i18next";
+import { Navigate } from "react-router-dom";
 
-import { FirstFactorRoute } from "@constants/Routes";
+import { IndexRoute } from "@constants/Routes";
 import { useIsMountedRef } from "@hooks/Mounted";
 import { useNotifications } from "@hooks/NotificationsContext";
 import { useRedirectionURL } from "@hooks/RedirectionURL";
@@ -21,6 +22,7 @@ const SignOut = function (props: Props) {
     const redirector = useRedirector();
     const [timedOut, setTimedOut] = useState(false);
     const [safeRedirect, setSafeRedirect] = useState(false);
+    const { t: translate } = useTranslation("Portal");
 
     const doSignOut = useCallback(async () => {
         try {
@@ -36,9 +38,9 @@ const SignOut = function (props: Props) {
             }, 2000);
         } catch (err) {
             console.error(err);
-            createErrorNotification("There was an issue signing out");
+            createErrorNotification(translate("There was an issue signing out"));
         }
-    }, [createErrorNotification, redirectionURL, setSafeRedirect, setTimedOut, mounted]);
+    }, [createErrorNotification, redirectionURL, setSafeRedirect, setTimedOut, mounted, translate]);
 
     useEffect(() => {
         doSignOut();
@@ -48,13 +50,13 @@ const SignOut = function (props: Props) {
         if (redirectionURL && safeRedirect) {
             redirector(redirectionURL);
         } else {
-            return <Redirect to={FirstFactorRoute} />;
+            return <Navigate to={IndexRoute} />;
         }
     }
 
     return (
-        <LoginLayout title="Sign out">
-            <Typography className={style.typo}>You're being signed out and redirected...</Typography>
+        <LoginLayout title={translate("Sign out")}>
+            <Typography className={style.typo}>{translate("You're being signed out and redirected")}...</Typography>
         </LoginLayout>
     );
 };

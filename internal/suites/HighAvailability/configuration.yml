@@ -3,14 +3,16 @@
 #                   Authelia configuration                    #
 ###############################################################
 
-port: 9091
-tls_cert: /config/ssl/cert.pem
-tls_key: /config/ssl/key.pem
+jwt_secret: unsecure_secret
+
+server:
+  port: 9091
+  tls:
+    certificate: /config/ssl/cert.pem
+    key: /config/ssl/key.pem
 
 log:
   level: debug
-
-jwt_secret: unsecure_secret
 
 totp:
   issuer: authelia.com
@@ -23,7 +25,7 @@ authentication_backend:
     additional_users_dn: ou=users
     users_filter: (&({username_attribute}={input})(objectClass=person))
     additional_groups_dn: ou=groups
-    groups_filter: (&(member={dn})(objectclass=groupOfNames))
+    groups_filter: (&(member={dn})(objectClass=groupOfNames))
     group_name_attribute: cn
     mail_attribute: mail
     display_name_attribute: displayName
@@ -108,6 +110,7 @@ regulation:
   ban_time: 10
 
 storage:
+  encryption_key: a_not_so_secure_encryption_key
   mysql:
     host: mariadb
     port: 3306

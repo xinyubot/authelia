@@ -1,8 +1,17 @@
 package session
 
-const userSessionStorerKey = "UserSession"
+import (
+	"time"
+)
 
-const testDomain = "example.com"
-const testExpiration = "40"
-const testName = "my_session"
-const testUsername = "john"
+const (
+	testDomain     = "example.com"
+	testExpiration = time.Second * 40
+	testName       = "my_session"
+	testUsername   = "john"
+)
+
+const (
+	userSessionStorerKey = "UserSession"
+	randomSessionChars   = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_!#$%^*"
+)

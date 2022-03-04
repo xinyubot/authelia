@@ -8,64 +8,50 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net"
 	"net/smtp"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"golang.org/x/crypto/openpgp"
 	"golang.org/x/crypto/openpgp/packet"
 
-	"github.com/authelia/authelia/internal/configuration/schema"
-	"github.com/authelia/authelia/internal/logging"
-	"github.com/authelia/authelia/internal/utils"
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/logging"
+	"github.com/authelia/authelia/v4/internal/utils"
 )
 
 // SMTPNotifier a notifier to send emails to SMTP servers.
 type SMTPNotifier struct {
-	username            string
-	password            string
-	sender              string
-	identifier          string
-	host                string
-	port                int
-	disableRequireTLS   bool
-	address             string
-	subject             string
-	startupCheckAddress string
+	config              *schema.SMTPNotifierConfiguration
 	client              *smtp.Client
 	tlsConfig           *tls.Config
+	log                 *logrus.Logger
 	signingPGPKeyring   openpgp.EntityList
 	signingPGPAlgorithm string
 }
 
 // NewSMTPNotifier creates a SMTPNotifier using the notifier configuration.
-func NewSMTPNotifier(configuration schema.SMTPNotifierConfiguration, certPool *x509.CertPool) *SMTPNotifier {
+func NewSMTPNotifier(config *schema.SMTPNotifierConfiguration, certPool *x509.CertPool) *SMTPNotifier {
 	notifier := &SMTPNotifier{
-		username:            configuration.Username,
-		password:            configuration.Password,
-		sender:              configuration.Sender,
-		identifier:          configuration.Identifier,
-		host:                configuration.Host,
-		port:                configuration.Port,
-		disableRequireTLS:   configuration.DisableRequireTLS,
-		address:             fmt.Sprintf("%s:%d", configuration.Host, configuration.Port),
-		subject:             configuration.Subject,
-		startupCheckAddress: configuration.StartupCheckAddress,
-		tlsConfig:           utils.NewTLSConfig(configuration.TLS, tls.VersionTLS12, certPool),
+		config:    config,
+		tlsConfig: utils.NewTLSConfig(config.TLS, tls.VersionTLS12, certPool),
+		log:       logging.Logger(),
 	}
 
-	if configuration.PGP != nil {
-		switch configuration.PGP.Algorithm {
+	if notifier.config.PGP != nil {
+		switch config.PGP.Algorithm {
 		case rfc4880HashSymbolSHA512, rfc4880HashSymbolSHA384, rfc4880HashSymbolSHA256, rfc4880HashSymbolSHA1:
-			notifier.signingPGPAlgorithm = configuration.PGP.Algorithm
+			notifier.signingPGPAlgorithm = config.PGP.Algorithm
 		default:
 			notifier.signingPGPAlgorithm = rfc4880HashSymbolSHA256
 		}
 
 		var err error
 
-		notifier.signingPGPKeyring, err = openpgp.ReadArmoredKeyRing(bytes.NewBufferString(configuration.PGP.Key))
+		notifier.signingPGPKeyring, err = openpgp.ReadArmoredKeyRing(bytes.NewBufferString(config.PGP.Key))
 		if err != nil {
 			fmt.Printf("err loading pgp entitylist: %v\n", err)
 		}
@@ -78,15 +64,16 @@ func NewSMTPNotifier(configuration schema.SMTPNotifierConfiguration, certPool *x
 
 func printDebugInfo(keyring openpgp.EntityList) {
 	fmt.Println("printing key information")
+
 	for _, entity := range keyring {
 		fmt.Println("======================")
-
 		fmt.Printf("fingerprint: %s\n", hex.EncodeToString(entity.PrivateKey.Fingerprint[:]))
-		for key, identity := range entity.Identities {
 
-			issuerKeyId := uint64(0)
+		for key, identity := range entity.Identities {
+			issuerKeyID := uint64(0)
+
 			if identity.SelfSignature.IssuerKeyId != nil {
-				issuerKeyId = *identity.SelfSignature.IssuerKeyId
+				issuerKeyID = *identity.SelfSignature.IssuerKeyId
 			}
 
 			isPrimaryKey := false
@@ -98,19 +85,24 @@ func printDebugInfo(keyring openpgp.EntityList) {
 			fmt.Printf("key: %s, name: %s\n", key, identity.Name)
 			fmt.Printf("user | id: %s, name: %s, email: %s, comment: %s\n", identity.UserId.Id, identity.UserId.Name, identity.UserId.Email, identity.UserId.Comment)
 			fmt.Printf("self | hash: %s, hash suffix: %s, created: %v, sig lifetime: %v, key lifetime: %v, expired: %v, type: %v\n", identity.SelfSignature.Hash.String(), hex.EncodeToString(identity.SelfSignature.HashSuffix), identity.SelfSignature.CreationTime, identity.SelfSignature.SigLifetimeSecs, identity.SelfSignature.KeyLifetimeSecs, identity.SelfSignature.KeyExpired(time.Now()), identity.SelfSignature.SigType)
-			fmt.Printf("self | algo: %v, issuer id: %d, compression: %d, hash %d, symetric: %v\n", identity.SelfSignature.PubKeyAlgo, issuerKeyId, identity.SelfSignature.PreferredCompression, identity.SelfSignature.PreferredCompression, identity.SelfSignature.PreferredSymmetric)
+			fmt.Printf("self | algo: %v, issuer id: %d, compression: %d, hash %d, symetric: %v\n", identity.SelfSignature.PubKeyAlgo, issuerKeyID, identity.SelfSignature.PreferredCompression, identity.SelfSignature.PreferredCompression, identity.SelfSignature.PreferredSymmetric)
 			fmt.Printf("self | primary: %v, sign: %v, certify: %v, encrypt storage: %v, encrypt communications: %v, mdc: %v, valid: %v\n", isPrimaryKey, identity.SelfSignature.FlagSign, identity.SelfSignature.FlagCertify, identity.SelfSignature.FlagEncryptStorage, identity.SelfSignature.FlagEncryptCommunications, identity.SelfSignature.MDC, identity.SelfSignature.FlagsValid)
 			fmt.Printf("self | rsa signature: %v\n", identity.SelfSignature.RSASignature)
+
 			if len(identity.Signatures) != 0 {
 				fmt.Println("**********************\nother signatures:")
+
 				for i, signature := range identity.Signatures {
 					fmt.Printf("%d | hash: %s, hash suffix: %s, created: %v, sig lifetime: %v, key lifetime: %v, expired: %v, type: %v\n", i, signature.Hash.String(), hex.EncodeToString(signature.HashSuffix), signature.CreationTime, signature.SigLifetimeSecs, signature.KeyLifetimeSecs, signature.KeyExpired(time.Now()), signature.SigType)
 					fmt.Printf("%d |  sign: %v, certify: %v, encrypt storage: %v, encrypt communications: %v, mdc: %v, valid: %v\n", i, signature.FlagSign, signature.FlagCertify, signature.FlagEncryptStorage, signature.FlagEncryptCommunications, signature.MDC, signature.FlagsValid)
 				}
+
 				fmt.Println("**********************")
 			}
+
 			fmt.Println("----------------------")
 		}
+
 		fmt.Println("======================")
 	}
 }
@@ -131,26 +123,25 @@ func writeDebugFile(header, signedContent string) {
 
 // Do startTLS if available (some servers only provide the auth extension after, and encryption is preferred).
 func (n *SMTPNotifier) startTLS() error {
-	logger := logging.Logger()
-	// Only start if not already encrypted
+	// Only start if not already encrypted.
 	if _, ok := n.client.TLSConnectionState(); ok {
-		logger.Debugf("Notifier SMTP connection is already encrypted, skipping STARTTLS")
+		n.log.Debugf("Notifier SMTP connection is already encrypted, skipping STARTTLS")
 		return nil
 	}
 
 	switch ok, _ := n.client.Extension("STARTTLS"); ok {
 	case true:
-		logger.Debugf("Notifier SMTP server supports STARTTLS (disableVerifyCert: %t, ServerName: %s), attempting", n.tlsConfig.InsecureSkipVerify, n.tlsConfig.ServerName)
+		n.log.Debugf("Notifier SMTP server supports STARTTLS (disableVerifyCert: %t, ServerName: %s), attempting", n.tlsConfig.InsecureSkipVerify, n.tlsConfig.ServerName)
 
 		if err := n.client.StartTLS(n.tlsConfig); err != nil {
 			return err
 		}
 
-		logger.Debug("Notifier SMTP STARTTLS completed without error")
+		n.log.Debug("Notifier SMTP STARTTLS completed without error")
 	default:
-		switch n.disableRequireTLS {
+		switch n.config.DisableRequireTLS {
 		case true:
-			logger.Warn("Notifier SMTP server does not support STARTTLS and SMTP configuration is set to disable the TLS requirement (only useful for unauthenticated emails over plain text)")
+			n.log.Warn("Notifier SMTP server does not support STARTTLS and SMTP configuration is set to disable the TLS requirement (only useful for unauthenticated emails over plain text)")
 		default:
 			return errors.New("Notifier SMTP server does not support TLS and it is required by default (see documentation if you want to disable this highly recommended requirement)")
 		}
@@ -161,9 +152,8 @@ func (n *SMTPNotifier) startTLS() error {
 
 // Attempt Authentication.
 func (n *SMTPNotifier) auth() error {
-	logger := logging.Logger()
 	// Attempt AUTH if password is specified only.
-	if n.password != "" {
+	if n.config.Password != "" {
 		_, ok := n.client.TLSConnectionState()
 		if !ok {
 			return errors.New("Notifier SMTP client does not support authentication over plain text and the connection is currently plain text")
@@ -174,18 +164,18 @@ func (n *SMTPNotifier) auth() error {
 		if ok {
 			var auth smtp.Auth
 
-			logger.Debugf("Notifier SMTP server supports authentication with the following mechanisms: %s", m)
+			n.log.Debugf("Notifier SMTP server supports authentication with the following mechanisms: %s", m)
 			mechanisms := strings.Split(m, " ")
 
 			// Adaptively select the AUTH mechanism to use based on what the server advertised.
 			if utils.IsStringInSlice("PLAIN", mechanisms) {
-				auth = smtp.PlainAuth("", n.username, n.password, n.host)
+				auth = smtp.PlainAuth("", n.config.Username, n.config.Password, n.config.Host)
 
-				logger.Debug("Notifier SMTP client attempting AUTH PLAIN with server")
+				n.log.Debug("Notifier SMTP client attempting AUTH PLAIN with server")
 			} else if utils.IsStringInSlice("LOGIN", mechanisms) {
-				auth = newLoginAuth(n.username, n.password, n.host)
+				auth = newLoginAuth(n.config.Username, n.config.Password, n.config.Host)
 
-				logger.Debug("Notifier SMTP client attempting AUTH LOGIN with server")
+				n.log.Debug("Notifier SMTP client attempting AUTH LOGIN with server")
 			}
 
 			// Throw error since AUTH extension is not supported.
@@ -198,7 +188,7 @@ func (n *SMTPNotifier) auth() error {
 				return err
 			}
 
-			logger.Debug("Notifier SMTP client authenticated successfully with the server")
+			n.log.Debug("Notifier SMTP client authenticated successfully with the server")
 
 			return nil
 		}
@@ -206,16 +196,15 @@ func (n *SMTPNotifier) auth() error {
 		return errors.New("Notifier SMTP server does not advertise the AUTH extension but config requires AUTH (password specified), either disable AUTH, or use an SMTP host that supports AUTH PLAIN or AUTH LOGIN")
 	}
 
-	logger.Debug("Notifier SMTP config has no password specified so authentication is being skipped")
+	n.log.Debug("Notifier SMTP config has no password specified so authentication is being skipped")
 
 	return nil
 }
 
 func (n *SMTPNotifier) compose(recipient, subject, body, htmlBody string) error {
-	logger := logging.Logger()
-	logger.Debugf("Notifier SMTP client attempting to send email body to %s", recipient)
+	n.log.Debugf("Notifier SMTP client attempting to send email body to %s", recipient)
 
-	if !n.disableRequireTLS {
+	if !n.config.DisableRequireTLS {
 		_, ok := n.client.TLSConnectionState()
 		if !ok {
 			return errors.New("Notifier SMTP client can't send an email over plain text connection")
@@ -224,16 +213,16 @@ func (n *SMTPNotifier) compose(recipient, subject, body, htmlBody string) error 
 
 	wc, err := n.client.Data()
 	if err != nil {
-		logger.Debugf("Notifier SMTP client error while obtaining WriteCloser: %s", err)
+		n.log.Debugf("Notifier SMTP client error while obtaining WriteCloser: %s", err)
 		return err
 	}
 
-	boundary := utils.RandomString(30, utils.AlphaNumericCharacters)
+	boundary := utils.RandomString(30, utils.AlphaNumericCharacters, true)
 
 	now := time.Now()
 
 	header := "Date: " + now.Format(rfc5322DateTimeLayout) + crlf +
-		"From: " + n.sender + crlf +
+		"From: " + n.config.Sender.String() + crlf +
 		"To: " + recipient + crlf +
 		"Subject: " + subject + crlf
 
@@ -254,7 +243,7 @@ func (n *SMTPNotifier) compose(recipient, subject, body, htmlBody string) error 
 
 	signedContent, err := n.packAndSignContent(signableContent, boundary)
 	if err != nil {
-		logger.Debugf("Notifier SMTP client error while packing and signing email content: %v", err)
+		n.log.Debugf("Notifier SMTP client error while packing and signing email content: %v", err)
 		return err
 	}
 
@@ -262,13 +251,13 @@ func (n *SMTPNotifier) compose(recipient, subject, body, htmlBody string) error 
 
 	_, err = fmt.Fprint(wc, header+signedContent)
 	if err != nil {
-		logger.Debugf("Notifier SMTP client error while sending email body over WriteCloser: %v", err)
+		n.log.Debugf("Notifier SMTP client error while sending email body over WriteCloser: %s", err)
 		return err
 	}
 
 	err = wc.Close()
 	if err != nil {
-		logger.Debugf("Notifier SMTP client error while closing the WriteCloser: %s", err)
+		n.log.Debugf("Notifier SMTP client error while closing the WriteCloser: %s", err)
 		return err
 	}
 
@@ -295,7 +284,7 @@ func (n *SMTPNotifier) packAndSignContent(content, contentBoundary string) (sign
 
 	content = contentTypeMultiPartAlternative + crlf + content
 
-	boundary := utils.RandomString(30, utils.AlphaNumericCharacters)
+	boundary := utils.RandomString(30, utils.AlphaNumericCharacters, true)
 
 	var (
 		config    *packet.Config
@@ -333,87 +322,83 @@ func (n *SMTPNotifier) packAndSignContent(content, contentBoundary string) (sign
 }
 
 // Dial the SMTP server with the SMTPNotifier config.
-func (n *SMTPNotifier) dial() error {
-	logger := logging.Logger()
-	logger.Debugf("Notifier SMTP client attempting connection to %s", n.address)
+func (n *SMTPNotifier) dial() (err error) {
+	var (
+		client *smtp.Client
+		conn   net.Conn
+		dialer = &net.Dialer{Timeout: n.config.Timeout}
+	)
 
-	if n.port == 465 {
-		logger.Warnf("Notifier SMTP client configured to connect to a SMTPS server. It's highly recommended you use a non SMTPS port and STARTTLS instead of SMTPS, as the protocol is long deprecated.")
+	n.log.Debugf("Notifier SMTP client attempting connection to %s:%d", n.config.Host, n.config.Port)
 
-		conn, err := tls.Dial("tcp", n.address, n.tlsConfig)
+	if n.config.Port == 465 {
+		n.log.Infof("Notifier SMTP client using submissions port 465. Make sure the mail server you are connecting to is configured for submissions and not SMTPS.")
+
+		conn, err = tls.DialWithDialer(dialer, "tcp", fmt.Sprintf("%s:%d", n.config.Host, n.config.Port), n.tlsConfig)
 		if err != nil {
 			return err
 		}
-
-		client, err := smtp.NewClient(conn, n.host)
-		if err != nil {
-			return err
-		}
-
-		n.client = client
 	} else {
-		client, err := smtp.Dial(n.address)
+		conn, err = dialer.Dial("tcp", fmt.Sprintf("%s:%d", n.config.Host, n.config.Port))
 		if err != nil {
 			return err
 		}
-
-		n.client = client
 	}
 
-	logger.Debug("Notifier SMTP client connected successfully")
+	client, err = smtp.NewClient(conn, n.config.Host)
+	if err != nil {
+		return err
+	}
+
+	n.client = client
+
+	n.log.Debug("Notifier SMTP client connected successfully")
 
 	return nil
 }
 
 // Closes the connection properly.
 func (n *SMTPNotifier) cleanup() {
-	logger := logging.Logger()
-
 	err := n.client.Quit()
 	if err != nil {
-		logger.Warnf("Notifier SMTP client encountered error during cleanup: %s", err)
+		n.log.Warnf("Notifier SMTP client encountered error during cleanup: %s", err)
 	}
 }
 
-// StartupCheck checks the server is functioning correctly and the configuration is correct.
-func (n *SMTPNotifier) StartupCheck() (bool, error) {
+// StartupCheck implements the startup check provider interface.
+func (n *SMTPNotifier) StartupCheck() (err error) {
 	if err := n.dial(); err != nil {
-		return false, err
+		return err
 	}
 
 	defer n.cleanup()
 
-	if err := n.client.Hello(n.identifier); err != nil {
-		return false, err
+	if err := n.client.Hello(n.config.Identifier); err != nil {
+		return err
 	}
 
 	if err := n.startTLS(); err != nil {
-		return false, err
+		return err
 	}
 
 	if err := n.auth(); err != nil {
-		return false, err
+		return err
 	}
 
-	if err := n.client.Mail(n.sender); err != nil {
-		return false, err
+	if err := n.client.Mail(n.config.Sender.Address); err != nil {
+		return err
 	}
 
-	if err := n.client.Rcpt(n.startupCheckAddress); err != nil {
-		return false, err
+	if err := n.client.Rcpt(n.config.StartupCheckAddress); err != nil {
+		return err
 	}
 
-	if err := n.client.Reset(); err != nil {
-		return false, err
-	}
-
-	return true, nil
+	return n.client.Reset()
 }
 
 // Send is used to send an email to a recipient.
 func (n *SMTPNotifier) Send(recipient, title, body, htmlBody string) error {
-	logger := logging.Logger()
-	subject := strings.ReplaceAll(n.subject, "{title}", title)
+	subject := strings.ReplaceAll(n.config.Subject, "{title}", title)
 
 	if err := n.dial(); err != nil {
 		return err
@@ -422,7 +407,7 @@ func (n *SMTPNotifier) Send(recipient, title, body, htmlBody string) error {
 	// Always execute QUIT at the end once we're connected.
 	defer n.cleanup()
 
-	if err := n.client.Hello(n.identifier); err != nil {
+	if err := n.client.Hello(n.config.Identifier); err != nil {
 		return err
 	}
 
@@ -436,13 +421,13 @@ func (n *SMTPNotifier) Send(recipient, title, body, htmlBody string) error {
 	}
 
 	// Set the sender and recipient first.
-	if err := n.client.Mail(n.sender); err != nil {
-		logger.Debugf("Notifier SMTP failed while sending MAIL FROM (using sender) with error: %s", err)
+	if err := n.client.Mail(n.config.Sender.Address); err != nil {
+		n.log.Debugf("Notifier SMTP failed while sending MAIL FROM (using sender) with error: %s", err)
 		return err
 	}
 
 	if err := n.client.Rcpt(recipient); err != nil {
-		logger.Debugf("Notifier SMTP failed while sending RCPT TO (using recipient) with error: %s", err)
+		n.log.Debugf("Notifier SMTP failed while sending RCPT TO (using recipient) with error: %s", err)
 		return err
 	}
 
@@ -451,7 +436,7 @@ func (n *SMTPNotifier) Send(recipient, title, body, htmlBody string) error {
 		return err
 	}
 
-	logger.Debug("Notifier SMTP client successfully sent email")
+	n.log.Debug("Notifier SMTP client successfully sent email")
 
 	return nil
 }

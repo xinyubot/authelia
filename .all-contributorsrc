@@ -530,6 +530,89 @@
       "contributions": [
         "userTesting"
       ]
+    },
+    {
+      "login": "nreymundo",
+      "name": "Nicolas Reymundo",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5833447?v=4",
+      "profile": "https://github.com/nreymundo",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "polandy",
+      "name": "polandy",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3670670?v=4",
+      "profile": "https://github.com/polandy",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "you1996",
+      "name": "yossbg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/45292366?v=4",
+      "profile": "https://github.com/you1996",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "mpdcampbell",
+      "name": "Michael Campbell",
+      "avatar_url": "https://avatars.githubusercontent.com/u/47434940?v=4",
+      "profile": "https://github.com/mpdcampbell",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "jsievenpiper",
+      "name": "Justin Sievenpiper",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1131882?v=4",
+      "profile": "https://sievenpiper.co",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "kaysond",
+      "name": "Aram Akhavan",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1147328?v=4",
+      "profile": "https://github.com/kaysond",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "shadow7412",
+      "name": "Shadow",
+      "avatar_url": "https://avatars.githubusercontent.com/u/286341?v=4",
+      "profile": "https://skhuf.net",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "tarioch",
+      "name": "Patrick Ruckstuhl",
+      "avatar_url": "https://avatars.githubusercontent.com/u/2998148?v=4",
+      "profile": "https://github.com/tarioch",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "FineWolf",
+      "name": "Andrew Moore",
+      "avatar_url": "https://avatars.githubusercontent.com/u/203591?v=4",
+      "profile": "https://github.com/FineWolf",
+      "contributions": [
+        "code",
+        "doc",
+        "test"
+      ]
     }
   ],
   "contributorsPerLine": 7

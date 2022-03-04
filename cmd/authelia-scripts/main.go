@@ -7,8 +7,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/authelia/authelia/internal/commands"
-	"github.com/authelia/authelia/internal/utils"
+	"github.com/authelia/authelia/v4/internal/commands"
+	"github.com/authelia/authelia/v4/internal/utils"
 )
 
 var buildkite bool
@@ -50,7 +50,7 @@ var Commands = []AutheliaCommandDefinition{
 	{
 		Name:        "docker",
 		Short:       "Commands related to building and publishing docker image",
-		SubCommands: CobraCommands{DockerBuildCmd, DockerPushCmd, DockerManifestCmd},
+		SubCommands: CobraCommands{DockerBuildCmd, DockerManifestCmd},
 	},
 	{
 		Name:  "serve [config]",
@@ -136,7 +136,7 @@ func main() {
 		cobraCommands = append(cobraCommands, command)
 	}
 
-	cobraCommands = append(cobraCommands, commands.HashPasswordCmd, commands.CertificatesCmd, commands.RSACmd, xflagsCmd)
+	cobraCommands = append(cobraCommands, commands.NewHashPasswordCmd(), commands.NewCertificatesCmd(), commands.NewRSACmd(), xflagsCmd)
 
 	rootCmd.PersistentFlags().BoolVar(&buildkite, "buildkite", false, "Set CI flag for Buildkite")
 	rootCmd.PersistentFlags().StringVar(&logLevel, "log-level", "info", "Set the log level for the command")

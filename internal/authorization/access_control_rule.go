@@ -3,8 +3,8 @@ package authorization
 import (
 	"net"
 
-	"github.com/authelia/authelia/internal/configuration/schema"
-	"github.com/authelia/authelia/internal/utils"
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/utils"
 )
 
 // NewAccessControlRules converts a schema.AccessControlConfiguration into an AccessControlRule slice.
@@ -124,10 +124,21 @@ func isMatchForNetworks(subject Subject, acl *AccessControlRule) (match bool) {
 	return false
 }
 
+// Same as isExactMatchForSubjects except it theoretically matches if subject is anonymous since they'd need to authenticate.
 func isMatchForSubjects(subject Subject, acl *AccessControlRule) (match bool) {
-	// If there are no subjects in this rule then the subject condition is a match.
-	if len(acl.Subjects) == 0 || subject.IsAnonymous() {
+	if subject.IsAnonymous() {
 		return true
+	}
+
+	return isExactMatchForSubjects(subject, acl)
+}
+
+func isExactMatchForSubjects(subject Subject, acl *AccessControlRule) (match bool) {
+	// If there are no subjects in this rule then the subject condition is a match.
+	if len(acl.Subjects) == 0 {
+		return true
+	} else if subject.IsAnonymous() {
+		return false
 	}
 
 	// Iterate over the subjects until we find a match (return true) or until we exit the loop (return false).

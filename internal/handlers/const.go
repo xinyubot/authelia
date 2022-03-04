@@ -1,29 +1,32 @@
 package handlers
 
-// TOTPRegistrationAction is the string representation of the action for which the token has been produced.
-const TOTPRegistrationAction = "RegisterTOTPDevice"
+import (
+	"time"
 
-// U2FRegistrationAction is the string representation of the action for which the token has been produced.
-const U2FRegistrationAction = "RegisterU2FDevice"
+	"github.com/valyala/fasthttp"
+)
 
-// ResetPasswordAction is the string representation of the action for which the token has been produced.
-const ResetPasswordAction = "ResetPassword"
+const (
+	// ActionTOTPRegistration is the string representation of the action for which the token has been produced.
+	ActionTOTPRegistration = "RegisterTOTPDevice"
 
-const authPrefix = "Basic "
+	// ActionWebauthnRegistration is the string representation of the action for which the token has been produced.
+	ActionWebauthnRegistration = "RegisterWebauthnDevice"
 
-// ProxyAuthorizationHeader is the basic-auth HTTP header Authelia utilises.
-const ProxyAuthorizationHeader = "Proxy-Authorization"
+	// ActionResetPassword is the string representation of the action for which the token has been produced.
+	ActionResetPassword = "ResetPassword"
+)
 
-// AuthorizationHeader is the basic-auth HTTP header Authelia utilises with "auth=basic" query param.
-const AuthorizationHeader = "Authorization"
+var (
+	headerAuthorization      = []byte(fasthttp.HeaderAuthorization)
+	headerProxyAuthorization = []byte(fasthttp.HeaderProxyAuthorization)
 
-// SessionUsernameHeader is used as additional protection to validate a user for things like pam_exec.
-const SessionUsernameHeader = "Session-Username"
-
-const remoteUserHeader = "Remote-User"
-const remoteNameHeader = "Remote-Name"
-const remoteEmailHeader = "Remote-Email"
-const remoteGroupsHeader = "Remote-Groups"
+	headerSessionUsername = []byte("Session-Username")
+	headerRemoteUser      = []byte("Remote-User")
+	headerRemoteGroups    = []byte("Remote-Groups")
+	headerRemoteName      = []byte("Remote-Name")
+	headerRemoteEmail     = []byte("Remote-Email")
+)
 
 const (
 	// Forbidden means the user is forbidden the access to a resource.
@@ -34,47 +37,64 @@ const (
 	Authorized authorizationMatching = iota
 )
 
-const operationFailedMessage = "Operation failed."
-const authenticationFailedMessage = "Authentication failed. Check your credentials."
-const userBannedMessage = "Please retry in a few minutes."
-const unableToRegisterOneTimePasswordMessage = "Unable to set up one-time passwords." //nolint:gosec
-const unableToRegisterSecurityKeyMessage = "Unable to register your security key."
-const unableToResetPasswordMessage = "Unable to reset your password."
-const mfaValidationFailedMessage = "Authentication failed, please retry later."
+const (
+	messageOperationFailed                 = "Operation failed."
+	messageAuthenticationFailed            = "Authentication failed. Check your credentials."
+	messageUnableToRegisterOneTimePassword = "Unable to set up one-time passwords." //nolint:gosec
+	messageUnableToRegisterSecurityKey     = "Unable to register your security key."
+	messageUnableToResetPassword           = "Unable to reset your password."
+	messageMFAValidationFailed             = "Authentication failed, please retry later."
+)
 
-const ldapPasswordComplexityCode = "0000052D."
+const (
+	logFmtErrParseRequestBody     = "Failed to parse %s request body: %+v"
+	logFmtErrWriteResponseBody    = "Failed to write %s response body for user '%s': %+v"
+	logFmtErrRegulationFail       = "Failed to perform %s authentication regulation for user '%s': %+v"
+	logFmtErrSessionRegenerate    = "Could not regenerate session during %s authentication for user '%s': %+v"
+	logFmtErrSessionReset         = "Could not reset session during %s authentication for user '%s': %+v"
+	logFmtErrSessionSave          = "Could not save session with the %s during %s authentication for user '%s': %+v"
+	logFmtErrObtainProfileDetails = "Could not obtain profile details during %s authentication for user '%s': %+v"
+	logFmtTraceProfileDetails     = "Profile details for user '%s' => groups: %s, emails %s"
+)
 
-var ldapPasswordComplexityCodes = []string{
-	"0000052D", "SynoNumber", "SynoMixedCase", "SynoExcludeNameDesc", "SynoSpecialChar",
-}
-var ldapPasswordComplexityErrors = []string{
-	"LDAP Result Code 19 \"Constraint Violation\": Password fails quality checking policy",
-	"LDAP Result Code 19 \"Constraint Violation\": Password is too young to change",
-}
+const (
+	testInactivity     = time.Second * 10
+	testRedirectionURL = "http://redirection.local"
+	testUsername       = "john"
+)
 
-const testInactivity = "10"
-const testRedirectionURL = "http://redirection.local"
-const testResultAllow = "allow"
-const testUsername = "john"
-
-const movingAverageWindow = 10
-const msMinimumDelay1FA = float64(250)
-const msMaximumRandomDelay = int64(85)
+// Duo constants.
+const (
+	allow  = "allow"
+	deny   = "deny"
+	enroll = "enroll"
+	auth   = "auth"
+)
 
 // OIDC constants.
 const (
-	oidcJWKsPath       = "/api/oidc/jwks"
-	oidcAuthorizePath  = "/api/oidc/authorize"
-	oidcTokenPath      = "/api/oidc/token" //nolint:gosec // This is not a hard coded credential, it's a path.
-	oidcIntrospectPath = "/api/oidc/introspect"
-	oidcRevokePath     = "/api/oidc/revoke"
-	oidcUserinfoPath   = "/api/oidc/userinfo"
+	pathLegacyOpenIDConnectAuthorization = "/api/oidc/authorize"
+	pathLegacyOpenIDConnectIntrospection = "/api/oidc/introspect"
+	pathLegacyOpenIDConnectRevocation    = "/api/oidc/revoke"
 
 	// Note: If you change this const you must also do so in the frontend at web/src/services/Api.ts.
-	oidcConsentPath = "/api/oidc/consent"
+	pathOpenIDConnectConsent = "/api/oidc/consent"
 )
 
 const (
 	accept = "accept"
 	reject = "reject"
 )
+
+const authPrefix = "Basic "
+
+const ldapPasswordComplexityCode = "0000052D."
+
+var ldapPasswordComplexityCodes = []string{
+	"0000052D", "SynoNumber", "SynoMixedCase", "SynoExcludeNameDesc", "SynoSpecialChar",
+}
+
+var ldapPasswordComplexityErrors = []string{
+	"LDAP Result Code 19 \"Constraint Violation\": Password fails quality checking policy",
+	"LDAP Result Code 19 \"Constraint Violation\": Password is too young to change",
+}

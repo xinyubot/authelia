@@ -3,11 +3,13 @@
 #                Authelia minimal configuration               #
 ###############################################################
 
-port: 9091
-tls_cert: /config/ssl/cert.pem
-tls_key: /config/ssl/key.pem
-
 theme: auto
+
+server:
+  port: 9091
+  tls:
+    certificate: /config/ssl/cert.pem
+    key: /config/ssl/key.pem
 
 log:
   level: debug
@@ -23,6 +25,7 @@ session:
   remember_me_duration: 1y
 
 storage:
+  encryption_key: a_not_so_secure_encryption_key
   local:
     path: /tmp/db.sqlite3
 
@@ -87,4 +90,13 @@ notifier:
     port: 1025
     sender: admin@example.com
     disable_require_tls: true
+ntp:
+  ## NTP server address
+  address: "time.cloudflare.com:123"
+  ## ntp version
+  version: 4
+  ## "maximum desynchronization" is the allowed offset time between the host and the ntp server
+  max_desync: 3s
+  ## You can enable or disable the NTP synchronization check on startup
+  disable_startup_check: false
 ...

@@ -3,9 +3,11 @@
 #                Authelia minimal configuration               #
 ###############################################################
 
-port: 9091
-tls_cert: /config/ssl/cert.pem
-tls_key: /config/ssl/key.pem
+server:
+  port: 9091
+  tls:
+    certificate: /config/ssl/cert.pem
+    key: /config/ssl/key.pem
 
 log:
   level: debug
@@ -24,8 +26,9 @@ session:
   remember_me_duration: 1y
 
 storage:
+  encryption_key: a_not_so_secure_encryption_key
   local:
-    path: /config/db.sqlite
+    path: /tmp/db.sqlite
 
 access_control:
   default_policy: bypass
@@ -38,8 +41,23 @@ access_control:
       policy: two_factor
     - domain: "singlefactor.example.com"
       policy: one_factor
+    - domain: "resources.example.com"
+      policy: one_factor
+      resources: ["^/resources"]
+    - domain: "method.example.com"
+      policy: one_factor
+      methods: ["POST"]
+    - domain: "network.example.com"
+      policy: one_factor
+      networks: ["192.168.1.0/24"]
+    - domain: "group.example.com"
+      policy: one_factor
+      subject: ["group:basic"]
+    - domain: "user.example.com"
+      policy: one_factor
+      subject: ["user:john"]
 
 notifier:
   filesystem:
-    filename: /config/notification.txt
+    filename: /tmp/notification.txt
 ...

@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"sort"
@@ -14,8 +13,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/authelia/authelia/internal/suites"
-	"github.com/authelia/authelia/internal/utils"
+	"github.com/authelia/authelia/v4/internal/suites"
+	"github.com/authelia/authelia/v4/internal/utils"
 )
 
 // ErrNotAvailableSuite error raised when suite is not available.
@@ -142,7 +141,7 @@ func runSuiteSetupTeardown(command string, suite string) error {
 		if _, err := os.Stat("../../web/.nyc_output"); err == nil {
 			log.Infof("Generating frontend coverage reports for suite %s...", suite)
 
-			cmd := utils.Command("yarn", "report")
+			cmd := utils.Command("pnpm", "report")
 			cmd.Dir = "web"
 			cmd.Env = os.Environ()
 
@@ -260,7 +259,7 @@ func getRunningSuite() (string, error) {
 		return "", nil
 	}
 
-	b, err := ioutil.ReadFile(runningSuiteFile)
+	b, err := os.ReadFile(runningSuiteFile)
 
 	return string(b), err
 }

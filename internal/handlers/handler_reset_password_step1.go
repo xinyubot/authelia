@@ -3,9 +3,10 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
-	"github.com/authelia/authelia/internal/middlewares"
-	"github.com/authelia/authelia/internal/session"
+	"github.com/authelia/authelia/v4/internal/middlewares"
+	"github.com/authelia/authelia/v4/internal/session"
 )
 
 func identityRetrieverFromStorage(ctx *middlewares.AutheliaCtx) (*session.Identity, error) {
@@ -23,7 +24,7 @@ func identityRetrieverFromStorage(ctx *middlewares.AutheliaCtx) (*session.Identi
 	}
 
 	if len(details.Emails) == 0 {
-		return nil, fmt.Errorf("User %s has no email address configured", requestBody.Username)
+		return nil, fmt.Errorf("user %s has no email address configured", requestBody.Username)
 	}
 
 	return &session.Identity{
@@ -38,9 +39,9 @@ var ResetPasswordIdentityStart = middlewares.IdentityVerificationStart(middlewar
 	MailTitle:             "Reset your password",
 	MailButtonContent:     "Reset",
 	TargetEndpoint:        "/reset-password/step2",
-	ActionClaim:           ResetPasswordAction,
+	ActionClaim:           ActionResetPassword,
 	IdentityRetrieverFunc: identityRetrieverFromStorage,
-})
+}, middlewares.TimingAttackDelay(10, 250, 85, time.Millisecond*500))
 
 func resetPasswordIdentityFinish(ctx *middlewares.AutheliaCtx, username string) {
 	userSession := ctx.GetSession()
@@ -57,4 +58,4 @@ func resetPasswordIdentityFinish(ctx *middlewares.AutheliaCtx, username string) 
 
 // ResetPasswordIdentityFinish the handler for finishing the identity validation.
 var ResetPasswordIdentityFinish = middlewares.IdentityVerificationFinish(
-	middlewares.IdentityVerificationFinishArgs{ActionClaim: ResetPasswordAction}, resetPasswordIdentityFinish)
+	middlewares.IdentityVerificationFinishArgs{ActionClaim: ActionResetPassword}, resetPasswordIdentityFinish)

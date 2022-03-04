@@ -1,14 +1,14 @@
-import React, { useEffect, Fragment, ReactNode, useState, useCallback } from "react";
+import React, { Fragment, ReactNode, useCallback, useEffect, useState } from "react";
 
-import { Switch, Route, Redirect, useHistory, useLocation } from "react-router";
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 
 import {
-    FirstFactorRoute,
-    SecondFactorRoute,
-    SecondFactorTOTPRoute,
-    SecondFactorPushRoute,
-    SecondFactorU2FRoute,
     AuthenticatedRoute,
+    IndexRoute,
+    SecondFactorPushSubRoute,
+    SecondFactorRoute,
+    SecondFactorTOTPSubRoute,
+    SecondFactorWebauthnSubRoute,
 } from "@constants/Routes";
 import { useConfiguration } from "@hooks/Configuration";
 import { useNotifications } from "@hooks/NotificationsContext";
@@ -16,8 +16,9 @@ import { useRedirectionURL } from "@hooks/RedirectionURL";
 import { useRedirector } from "@hooks/Redirector";
 import { useRequestMethod } from "@hooks/RequestMethod";
 import { useAutheliaState } from "@hooks/State";
-import { useUserPreferences as userUserInfo } from "@hooks/UserInfo";
+import { useUserInfo } from "@hooks/UserInfo";
 import { SecondFactorMethod } from "@models/Methods";
+import { checkSafeRedirection } from "@services/SafeRedirection";
 import { AuthenticationLevel } from "@services/State";
 import LoadingPage from "@views/LoadingPage/LoadingPage";
 import AuthenticatedView from "@views/LoginPortal/AuthenticatedView/AuthenticatedView";
@@ -25,12 +26,16 @@ import FirstFactorForm from "@views/LoginPortal/FirstFactor/FirstFactorForm";
 import SecondFactorForm from "@views/LoginPortal/SecondFactor/SecondFactorForm";
 
 export interface Props {
+    duoSelfEnrollment: boolean;
     rememberMe: boolean;
     resetPassword: boolean;
 }
 
+const RedirectionErrorMessage =
+    "Redirection was determined to be unsafe and aborted. Ensure the redirection URL is correct.";
+
 const LoginPortal = function (props: Props) {
-    const history = useHistory();
+    const navigate = useNavigate();
     const location = useLocation();
     const redirectionURL = useRedirectionURL();
     const requestMethod = useRequestMethod();
@@ -39,10 +44,10 @@ const LoginPortal = function (props: Props) {
     const redirector = useRedirector();
 
     const [state, fetchState, , fetchStateError] = useAutheliaState();
-    const [userInfo, fetchUserInfo, , fetchUserInfoError] = userUserInfo();
+    const [userInfo, fetchUserInfo, , fetchUserInfoError] = useUserInfo();
     const [configuration, fetchConfiguration, , fetchConfigurationError] = useConfiguration();
 
-    const redirect = useCallback((url: string) => history.push(url), [history]);
+    const redirect = useCallback((url: string) => navigate(url), [navigate]);
 
     // Fetch the state when portal is mounted.
     useEffect(() => {
@@ -87,29 +92,63 @@ const LoginPortal = function (props: Props) {
 
     // Redirect to the correct stage if not enough authenticated
     useEffect(() => {
-        if (state) {
+        (async function () {
+            if (!state) {
+                return;
+            }
+
+            if (
+                redirectionURL &&
+                ((configuration &&
+                    configuration.available_methods.size === 0 &&
+                    state.authentication_level >= AuthenticationLevel.OneFactor) ||
+                    state.authentication_level === AuthenticationLevel.TwoFactor)
+            ) {
+                try {
+                    const res = await checkSafeRedirection(redirectionURL);
+                    if (res && res.ok) {
+                        redirector(redirectionURL);
+                    } else {
+                        createErrorNotification(RedirectionErrorMessage);
+                    }
+                } catch (err) {
+                    createErrorNotification(RedirectionErrorMessage);
+                }
+                return;
+            }
+
             const redirectionSuffix = redirectionURL
                 ? `?rd=${encodeURIComponent(redirectionURL)}${requestMethod ? `&rm=${requestMethod}` : ""}`
                 : "";
 
             if (state.authentication_level === AuthenticationLevel.Unauthenticated) {
                 setFirstFactorDisabled(false);
-                redirect(`${FirstFactorRoute}${redirectionSuffix}`);
+                redirect(`${IndexRoute}${redirectionSuffix}`);
             } else if (state.authentication_level >= AuthenticationLevel.OneFactor && userInfo && configuration) {
-                if (!configuration.second_factor_enabled) {
+                if (configuration.available_methods.size === 0) {
                     redirect(AuthenticatedRoute);
                 } else {
-                    if (userInfo.method === SecondFactorMethod.U2F) {
-                        redirect(`${SecondFactorU2FRoute}${redirectionSuffix}`);
+                    if (userInfo.method === SecondFactorMethod.Webauthn) {
+                        redirect(`${SecondFactorRoute}${SecondFactorWebauthnSubRoute}${redirectionSuffix}`);
                     } else if (userInfo.method === SecondFactorMethod.MobilePush) {
-                        redirect(`${SecondFactorPushRoute}${redirectionSuffix}`);
+                        redirect(`${SecondFactorRoute}${SecondFactorPushSubRoute}${redirectionSuffix}`);
                     } else {
-                        redirect(`${SecondFactorTOTPRoute}${redirectionSuffix}`);
+                        redirect(`${SecondFactorRoute}${SecondFactorTOTPSubRoute}${redirectionSuffix}`);
                     }
                 }
             }
-        }
-    }, [state, redirectionURL, requestMethod, redirect, userInfo, setFirstFactorDisabled, configuration]);
+        })();
+    }, [
+        state,
+        redirectionURL,
+        requestMethod,
+        redirect,
+        userInfo,
+        setFirstFactorDisabled,
+        configuration,
+        createErrorNotification,
+        redirector,
+    ]);
 
     const handleAuthSuccess = async (redirectionURL: string | undefined) => {
         if (redirectionURL) {
@@ -124,41 +163,45 @@ const LoginPortal = function (props: Props) {
     const firstFactorReady =
         state !== undefined &&
         state.authentication_level === AuthenticationLevel.Unauthenticated &&
-        location.pathname === FirstFactorRoute;
+        location.pathname === IndexRoute;
 
     return (
-        <Switch>
-            <Route path={FirstFactorRoute} exact>
-                <ComponentOrLoading ready={firstFactorReady}>
-                    <FirstFactorForm
-                        disabled={firstFactorDisabled}
-                        rememberMe={props.rememberMe}
-                        resetPassword={props.resetPassword}
-                        onAuthenticationStart={() => setFirstFactorDisabled(true)}
-                        onAuthenticationFailure={() => setFirstFactorDisabled(false)}
-                        onAuthenticationSuccess={handleAuthSuccess}
-                    />
-                </ComponentOrLoading>
-            </Route>
-            <Route path={SecondFactorRoute}>
-                {state && userInfo && configuration ? (
-                    <SecondFactorForm
-                        authenticationLevel={state.authentication_level}
-                        userInfo={userInfo}
-                        configuration={configuration}
-                        onMethodChanged={() => fetchUserInfo()}
-                        onAuthenticationSuccess={handleAuthSuccess}
-                    />
-                ) : null}
-            </Route>
-            <Route path={AuthenticatedRoute} exact>
-                {userInfo ? <AuthenticatedView name={userInfo.display_name} /> : null}
-            </Route>
-            {/* By default we route to first factor page */}
-            <Route path="/">
-                <Redirect to={FirstFactorRoute} />
-            </Route>
-        </Switch>
+        <Routes>
+            <Route
+                path={IndexRoute}
+                element={
+                    <ComponentOrLoading ready={firstFactorReady}>
+                        <FirstFactorForm
+                            disabled={firstFactorDisabled}
+                            rememberMe={props.rememberMe}
+                            resetPassword={props.resetPassword}
+                            onAuthenticationStart={() => setFirstFactorDisabled(true)}
+                            onAuthenticationFailure={() => setFirstFactorDisabled(false)}
+                            onAuthenticationSuccess={handleAuthSuccess}
+                        />
+                    </ComponentOrLoading>
+                }
+            />
+            <Route
+                path={`${SecondFactorRoute}*`}
+                element={
+                    state && userInfo && configuration ? (
+                        <SecondFactorForm
+                            authenticationLevel={state.authentication_level}
+                            userInfo={userInfo}
+                            configuration={configuration}
+                            duoSelfEnrollment={props.duoSelfEnrollment}
+                            onMethodChanged={() => fetchUserInfo()}
+                            onAuthenticationSuccess={handleAuthSuccess}
+                        />
+                    ) : null
+                }
+            />
+            <Route
+                path={AuthenticatedRoute}
+                element={userInfo ? <AuthenticatedView name={userInfo.display_name} /> : null}
+            />
+        </Routes>
     );
 };
 

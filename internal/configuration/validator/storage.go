@@ -2,51 +2,74 @@ package validator
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 
-	"github.com/authelia/authelia/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/utils"
 )
 
 // ValidateStorage validates storage configuration.
-func ValidateStorage(configuration schema.StorageConfiguration, validator *schema.StructValidator) {
-	if configuration.Local == nil && configuration.MySQL == nil && configuration.PostgreSQL == nil {
-		validator.Push(errors.New("A storage configuration must be provided. It could be 'local', 'mysql' or 'postgres'"))
+func ValidateStorage(config schema.StorageConfiguration, validator *schema.StructValidator) {
+	if config.Local == nil && config.MySQL == nil && config.PostgreSQL == nil {
+		validator.Push(errors.New(errStrStorage))
 	}
 
 	switch {
-	case configuration.MySQL != nil:
-		validateSQLConfiguration(&configuration.MySQL.SQLStorageConfiguration, validator)
-	case configuration.PostgreSQL != nil:
-		validatePostgreSQLConfiguration(configuration.PostgreSQL, validator)
-	case configuration.Local != nil:
-		validateLocalStorageConfiguration(configuration.Local, validator)
+	case config.MySQL != nil:
+		validateSQLConfiguration(&config.MySQL.SQLStorageConfiguration, validator, "mysql")
+	case config.PostgreSQL != nil:
+		validatePostgreSQLConfiguration(config.PostgreSQL, validator)
+	case config.Local != nil:
+		validateLocalStorageConfiguration(config.Local, validator)
+	}
+
+	if config.EncryptionKey == "" {
+		validator.Push(errors.New(errStrStorageEncryptionKeyMustBeProvided))
+	} else if len(config.EncryptionKey) < 20 {
+		validator.Push(errors.New(errStrStorageEncryptionKeyTooShort))
 	}
 }
 
-func validateSQLConfiguration(configuration *schema.SQLStorageConfiguration, validator *schema.StructValidator) {
-	if configuration.Password == "" || configuration.Username == "" {
-		validator.Push(errors.New("the SQL username and password must be provided"))
+func validateSQLConfiguration(config *schema.SQLStorageConfiguration, validator *schema.StructValidator, provider string) {
+	if config.Timeout == 0 {
+		config.Timeout = schema.DefaultSQLStorageConfiguration.Timeout
 	}
 
-	if configuration.Database == "" {
-		validator.Push(errors.New("the SQL database must be provided"))
-	}
-}
-
-func validatePostgreSQLConfiguration(configuration *schema.PostgreSQLStorageConfiguration, validator *schema.StructValidator) {
-	validateSQLConfiguration(&configuration.SQLStorageConfiguration, validator)
-
-	if configuration.SSLMode == "" {
-		configuration.SSLMode = testModeDisabled
+	if config.Host == "" {
+		validator.Push(fmt.Errorf(errFmtStorageOptionMustBeProvided, provider, "host"))
 	}
 
-	if !(configuration.SSLMode == testModeDisabled || configuration.SSLMode == "require" ||
-		configuration.SSLMode == "verify-ca" || configuration.SSLMode == "verify-full") {
-		validator.Push(errors.New("SSL mode must be 'disable', 'require', 'verify-ca', or 'verify-full'"))
+	if config.Username == "" || config.Password == "" {
+		validator.Push(fmt.Errorf(errFmtStorageUserPassMustBeProvided, provider))
+	}
+
+	if config.Database == "" {
+		validator.Push(fmt.Errorf(errFmtStorageOptionMustBeProvided, provider, "database"))
 	}
 }
 
-func validateLocalStorageConfiguration(configuration *schema.LocalStorageConfiguration, validator *schema.StructValidator) {
-	if configuration.Path == "" {
-		validator.Push(errors.New("A file path must be provided with key 'path'"))
+func validatePostgreSQLConfiguration(config *schema.PostgreSQLStorageConfiguration, validator *schema.StructValidator) {
+	validateSQLConfiguration(&config.SQLStorageConfiguration, validator, "postgres")
+
+	if config.Schema == "" {
+		config.Schema = schema.DefaultPostgreSQLStorageConfiguration.Schema
+	}
+
+	// Deprecated. TODO: Remove in v4.36.0.
+	if config.SSLMode != "" && config.SSL.Mode == "" {
+		config.SSL.Mode = config.SSLMode
+	}
+
+	if config.SSL.Mode == "" {
+		config.SSL.Mode = schema.DefaultPostgreSQLStorageConfiguration.SSL.Mode
+	} else if !utils.IsStringInSlice(config.SSL.Mode, validStoragePostgreSQLSSLModes) {
+		validator.Push(fmt.Errorf(errFmtStoragePostgreSQLInvalidSSLMode, strings.Join(validStoragePostgreSQLSSLModes, "', '"), config.SSL.Mode))
+	}
+}
+
+func validateLocalStorageConfiguration(config *schema.LocalStorageConfiguration, validator *schema.StructValidator) {
+	if config.Path == "" {
+		validator.Push(fmt.Errorf(errFmtStorageOptionMustBeProvided, "local", "path"))
 	}
 }

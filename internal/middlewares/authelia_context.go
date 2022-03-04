@@ -5,20 +5,22 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"path"
 	"strings"
 
 	"github.com/asaskevich/govalidator"
 	"github.com/sirupsen/logrus"
 	"github.com/valyala/fasthttp"
 
-	"github.com/authelia/authelia/internal/configuration/schema"
-	"github.com/authelia/authelia/internal/session"
-	"github.com/authelia/authelia/internal/utils"
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/logging"
+	"github.com/authelia/authelia/v4/internal/session"
+	"github.com/authelia/authelia/v4/internal/utils"
 )
 
 // NewRequestLogger create a new request logger for the given request.
 func NewRequestLogger(ctx *AutheliaCtx) *logrus.Entry {
-	return logrus.WithFields(logrus.Fields{
+	return logging.Logger().WithFields(logrus.Fields{
 		"method":    string(ctx.Method()),
 		"path":      string(ctx.Path()),
 		"remote_ip": ctx.RemoteIP().String(),
@@ -43,7 +45,7 @@ func AutheliaMiddleware(configuration schema.Configuration, providers Providers)
 		return func(ctx *fasthttp.RequestCtx) {
 			autheliaCtx, err := NewAutheliaCtx(ctx, configuration, providers)
 			if err != nil {
-				autheliaCtx.Error(err, operationFailedMessage)
+				autheliaCtx.Error(err, messageOperationFailed)
 				return
 			}
 
@@ -53,94 +55,141 @@ func AutheliaMiddleware(configuration schema.Configuration, providers Providers)
 }
 
 // Error reply with an error and display the stack trace in the logs.
-func (c *AutheliaCtx) Error(err error, message string) {
+func (ctx *AutheliaCtx) Error(err error, message string) {
+	ctx.SetJSONError(message)
+
+	ctx.Logger.Error(err)
+}
+
+// SetJSONError sets the body of the response to an JSON error KO message.
+func (ctx *AutheliaCtx) SetJSONError(message string) {
 	b, marshalErr := json.Marshal(ErrorResponse{Status: "KO", Message: message})
 
 	if marshalErr != nil {
-		c.Logger.Error(marshalErr)
+		ctx.Logger.Error(marshalErr)
 	}
 
-	c.SetContentType("application/json")
-	c.SetBody(b)
-	c.Logger.Error(err)
+	ctx.SetContentType(contentTypeApplicationJSON)
+	ctx.SetBody(b)
 }
 
 // ReplyError reply with an error but does not display any stack trace in the logs.
-func (c *AutheliaCtx) ReplyError(err error, message string) {
+func (ctx *AutheliaCtx) ReplyError(err error, message string) {
 	b, marshalErr := json.Marshal(ErrorResponse{Status: "KO", Message: message})
 
 	if marshalErr != nil {
-		c.Logger.Error(marshalErr)
+		ctx.Logger.Error(marshalErr)
 	}
 
-	c.SetContentType("application/json")
-	c.SetBody(b)
-	c.Logger.Debug(err)
+	ctx.SetContentType(contentTypeApplicationJSON)
+	ctx.SetBody(b)
+	ctx.Logger.Debug(err)
 }
 
 // ReplyUnauthorized response sent when user is unauthorized.
-func (c *AutheliaCtx) ReplyUnauthorized() {
-	c.RequestCtx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
+func (ctx *AutheliaCtx) ReplyUnauthorized() {
+	ctx.RequestCtx.Error(fasthttp.StatusMessage(fasthttp.StatusUnauthorized), fasthttp.StatusUnauthorized)
 }
 
 // ReplyForbidden response sent when access is forbidden to user.
-func (c *AutheliaCtx) ReplyForbidden() {
-	c.RequestCtx.Error(fasthttp.StatusMessage(fasthttp.StatusForbidden), fasthttp.StatusForbidden)
+func (ctx *AutheliaCtx) ReplyForbidden() {
+	ctx.RequestCtx.Error(fasthttp.StatusMessage(fasthttp.StatusForbidden), fasthttp.StatusForbidden)
 }
 
 // ReplyBadRequest response sent when bad request has been sent.
-func (c *AutheliaCtx) ReplyBadRequest() {
-	c.RequestCtx.Error(fasthttp.StatusMessage(fasthttp.StatusBadRequest), fasthttp.StatusBadRequest)
+func (ctx *AutheliaCtx) ReplyBadRequest() {
+	ctx.RequestCtx.Error(fasthttp.StatusMessage(fasthttp.StatusBadRequest), fasthttp.StatusBadRequest)
 }
 
 // XForwardedProto return the content of the X-Forwarded-Proto header.
-func (c *AutheliaCtx) XForwardedProto() []byte {
-	return c.RequestCtx.Request.Header.Peek(xForwardedProtoHeader)
+func (ctx *AutheliaCtx) XForwardedProto() (proto []byte) {
+	proto = ctx.RequestCtx.Request.Header.PeekBytes(headerXForwardedProto)
+
+	if proto == nil {
+		if ctx.RequestCtx.IsTLS() {
+			return protoHTTPS
+		}
+
+		return protoHTTP
+	}
+
+	return proto
 }
 
 // XForwardedMethod return the content of the X-Forwarded-Method header.
-func (c *AutheliaCtx) XForwardedMethod() []byte {
-	return c.RequestCtx.Request.Header.Peek(xForwardedMethodHeader)
+func (ctx *AutheliaCtx) XForwardedMethod() (method []byte) {
+	return ctx.RequestCtx.Request.Header.PeekBytes(headerXForwardedMethod)
 }
 
 // XForwardedHost return the content of the X-Forwarded-Host header.
-func (c *AutheliaCtx) XForwardedHost() []byte {
-	return c.RequestCtx.Request.Header.Peek(xForwardedHostHeader)
+func (ctx *AutheliaCtx) XForwardedHost() (host []byte) {
+	host = ctx.RequestCtx.Request.Header.PeekBytes(headerXForwardedHost)
+
+	if host == nil {
+		return ctx.RequestCtx.Host()
+	}
+
+	return host
 }
 
 // XForwardedURI return the content of the X-Forwarded-URI header.
-func (c *AutheliaCtx) XForwardedURI() []byte {
-	return c.RequestCtx.Request.Header.Peek(xForwardedURIHeader)
+func (ctx *AutheliaCtx) XForwardedURI() (uri []byte) {
+	uri = ctx.RequestCtx.Request.Header.PeekBytes(headerXForwardedURI)
+
+	if len(uri) == 0 {
+		return ctx.RequestCtx.RequestURI()
+	}
+
+	return uri
 }
 
-// ForwardedProtoHost gets the X-Forwarded-Proto and X-Forwarded-Host headers and forms them into a URL.
-func (c AutheliaCtx) ForwardedProtoHost() (string, error) {
-	XForwardedProto := c.XForwardedProto()
+// BasePath returns the base_url as per the path visited by the client.
+func (ctx *AutheliaCtx) BasePath() (base string) {
+	if baseURL := ctx.UserValueBytes(UserValueKeyBaseURL); baseURL != nil {
+		return baseURL.(string)
+	}
 
-	if XForwardedProto == nil {
+	return base
+}
+
+// ExternalRootURL gets the X-Forwarded-Proto, X-Forwarded-Host headers and the BasePath and forms them into a URL.
+func (ctx *AutheliaCtx) ExternalRootURL() (string, error) {
+	protocol := ctx.XForwardedProto()
+	if protocol == nil {
 		return "", errMissingXForwardedProto
 	}
 
-	XForwardedHost := c.XForwardedHost()
-
-	if XForwardedHost == nil {
+	host := ctx.XForwardedHost()
+	if host == nil {
 		return "", errMissingXForwardedHost
 	}
 
-	return fmt.Sprintf("%s://%s", XForwardedProto,
-		XForwardedHost), nil
+	externalRootURL := fmt.Sprintf("%s://%s", protocol, host)
+
+	if base := ctx.BasePath(); base != "" {
+		externalBaseURL, err := url.Parse(externalRootURL)
+		if err != nil {
+			return "", err
+		}
+
+		externalBaseURL.Path = path.Join(externalBaseURL.Path, base)
+
+		return externalBaseURL.String(), nil
+	}
+
+	return externalRootURL, nil
 }
 
 // XOriginalURL return the content of the X-Original-URL header.
-func (c *AutheliaCtx) XOriginalURL() []byte {
-	return c.RequestCtx.Request.Header.Peek(xOriginalURLHeader)
+func (ctx *AutheliaCtx) XOriginalURL() []byte {
+	return ctx.RequestCtx.Request.Header.PeekBytes(headerXOriginalURL)
 }
 
 // GetSession return the user session. Any update will be saved in cache.
-func (c *AutheliaCtx) GetSession() session.UserSession {
-	userSession, err := c.Providers.SessionProvider.GetSession(c.RequestCtx)
+func (ctx *AutheliaCtx) GetSession() session.UserSession {
+	userSession, err := ctx.Providers.SessionProvider.GetSession(ctx.RequestCtx)
 	if err != nil {
-		c.Logger.Error("Unable to retrieve user session")
+		ctx.Logger.Error("Unable to retrieve user session")
 		return session.NewDefaultUserSession()
 	}
 
@@ -148,28 +197,28 @@ func (c *AutheliaCtx) GetSession() session.UserSession {
 }
 
 // SaveSession save the content of the session.
-func (c *AutheliaCtx) SaveSession(userSession session.UserSession) error {
-	return c.Providers.SessionProvider.SaveSession(c.RequestCtx, userSession)
+func (ctx *AutheliaCtx) SaveSession(userSession session.UserSession) error {
+	return ctx.Providers.SessionProvider.SaveSession(ctx.RequestCtx, userSession)
 }
 
 // ReplyOK is a helper method to reply ok.
-func (c *AutheliaCtx) ReplyOK() {
-	c.SetContentType(applicationJSONContentType)
-	c.SetBody(okMessageBytes)
+func (ctx *AutheliaCtx) ReplyOK() {
+	ctx.SetContentType(contentTypeApplicationJSON)
+	ctx.SetBody(okMessageBytes)
 }
 
 // ParseBody parse the request body into the type of value.
-func (c *AutheliaCtx) ParseBody(value interface{}) error {
-	err := json.Unmarshal(c.PostBody(), &value)
+func (ctx *AutheliaCtx) ParseBody(value interface{}) error {
+	err := json.Unmarshal(ctx.PostBody(), &value)
 
 	if err != nil {
-		return fmt.Errorf("Unable to parse body: %s", err)
+		return fmt.Errorf("unable to parse body: %w", err)
 	}
 
 	valid, err := govalidator.ValidateStruct(value)
 
 	if err != nil {
-		return fmt.Errorf("Unable to validate body: %s", err)
+		return fmt.Errorf("unable to validate body: %w", err)
 	}
 
 	if !valid {
@@ -180,21 +229,21 @@ func (c *AutheliaCtx) ParseBody(value interface{}) error {
 }
 
 // SetJSONBody Set json body.
-func (c *AutheliaCtx) SetJSONBody(value interface{}) error {
+func (ctx *AutheliaCtx) SetJSONBody(value interface{}) error {
 	b, err := json.Marshal(OKResponse{Status: "OK", Data: value})
 	if err != nil {
-		return fmt.Errorf("Unable to marshal JSON body")
+		return fmt.Errorf("unable to marshal JSON body: %w", err)
 	}
 
-	c.SetContentType("application/json")
-	c.SetBody(b)
+	ctx.SetContentType(contentTypeApplicationJSON)
+	ctx.SetBody(b)
 
 	return nil
 }
 
 // RemoteIP return the remote IP taking X-Forwarded-For header into account if provided.
-func (c *AutheliaCtx) RemoteIP() net.IP {
-	XForwardedFor := c.Request.Header.Peek("X-Forwarded-For")
+func (ctx *AutheliaCtx) RemoteIP() net.IP {
+	XForwardedFor := ctx.Request.Header.PeekBytes(headerXForwardedFor)
 	if XForwardedFor != nil {
 		ips := strings.Split(string(XForwardedFor), ",")
 
@@ -203,26 +252,24 @@ func (c *AutheliaCtx) RemoteIP() net.IP {
 		}
 	}
 
-	return c.RequestCtx.RemoteIP()
+	return ctx.RequestCtx.RemoteIP()
 }
 
-// GetOriginalURL extract the URL from the request headers (X-Original-URI or X-Forwarded-* headers).
-func (c *AutheliaCtx) GetOriginalURL() (*url.URL, error) {
-	originalURL := c.XOriginalURL()
+// GetOriginalURL extract the URL from the request headers (X-Original-URL or X-Forwarded-* headers).
+func (ctx *AutheliaCtx) GetOriginalURL() (*url.URL, error) {
+	originalURL := ctx.XOriginalURL()
 	if originalURL != nil {
 		parsedURL, err := url.ParseRequestURI(string(originalURL))
 		if err != nil {
 			return nil, fmt.Errorf("Unable to parse URL extracted from X-Original-URL header: %v", err)
 		}
 
-		c.Logger.Trace("Using X-Original-URL header content as targeted site URL")
+		ctx.Logger.Trace("Using X-Original-URL header content as targeted site URL")
 
 		return parsedURL, nil
 	}
 
-	forwardedProto := c.XForwardedProto()
-	forwardedHost := c.XForwardedHost()
-	forwardedURI := c.XForwardedURI()
+	forwardedProto, forwardedHost, forwardedURI := ctx.XForwardedProto(), ctx.XForwardedHost(), ctx.XForwardedURI()
 
 	if forwardedProto == nil {
 		return nil, errMissingXForwardedProto
@@ -244,8 +291,51 @@ func (c *AutheliaCtx) GetOriginalURL() (*url.URL, error) {
 		return nil, fmt.Errorf("Unable to parse URL %s: %v", requestURI, err)
 	}
 
-	c.Logger.Tracef("Using X-Fowarded-Proto, X-Forwarded-Host and X-Forwarded-URI headers " +
+	ctx.Logger.Tracef("Using X-Fowarded-Proto, X-Forwarded-Host and X-Forwarded-URI headers " +
 		"to construct targeted site URL")
 
 	return parsedURL, nil
+}
+
+// IsXHR returns true if the request is a XMLHttpRequest.
+func (ctx AutheliaCtx) IsXHR() (xhr bool) {
+	requestedWith := ctx.Request.Header.PeekBytes(headerXRequestedWith)
+
+	return requestedWith != nil && strings.EqualFold(string(requestedWith), headerValueXRequestedWithXHR)
+}
+
+// AcceptsMIME takes a mime type and returns true if the request accepts that type or the wildcard type.
+func (ctx AutheliaCtx) AcceptsMIME(mime string) (acceptsMime bool) {
+	accepts := strings.Split(string(ctx.Request.Header.PeekBytes(headerAccept)), ",")
+
+	for i, accept := range accepts {
+		mimeType := strings.Trim(strings.SplitN(accept, ";", 2)[0], " ")
+		if mimeType == mime || (i == 0 && mimeType == "*/*") {
+			return true
+		}
+	}
+
+	return false
+}
+
+// SpecialRedirect performs a redirect similar to fasthttp.RequestCtx except it allows statusCode 401 and includes body
+// content in the form of a link to the location.
+func (ctx *AutheliaCtx) SpecialRedirect(uri string, statusCode int) {
+	if statusCode < fasthttp.StatusMovedPermanently || (statusCode > fasthttp.StatusSeeOther && statusCode != fasthttp.StatusTemporaryRedirect && statusCode != fasthttp.StatusPermanentRedirect && statusCode != fasthttp.StatusUnauthorized) {
+		statusCode = fasthttp.StatusFound
+	}
+
+	ctx.SetContentType(contentTypeTextHTML)
+	ctx.SetStatusCode(statusCode)
+
+	u := fasthttp.AcquireURI()
+
+	ctx.URI().CopyTo(u)
+	u.Update(uri)
+
+	ctx.Response.Header.SetBytesV("Location", u.FullURI())
+
+	ctx.SetBodyString(fmt.Sprintf("<a href=\"%s\">%s</a>", utils.StringHTMLEscape(string(u.FullURI())), fasthttp.StatusMessage(statusCode)))
+
+	fasthttp.ReleaseURI(u)
 }

@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/authelia/authelia/internal/authentication"
-	"github.com/authelia/authelia/internal/authorization"
-	"github.com/authelia/authelia/internal/configuration/schema"
-	"github.com/authelia/authelia/internal/mocks"
-	"github.com/authelia/authelia/internal/session"
-	"github.com/authelia/authelia/internal/utils"
+	"github.com/authelia/authelia/v4/internal/authentication"
+	"github.com/authelia/authelia/v4/internal/authorization"
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/mocks"
+	"github.com/authelia/authelia/v4/internal/session"
+	"github.com/authelia/authelia/v4/internal/utils"
 )
 
 var verifyGetCfg = schema.AuthenticationBackendConfiguration{
@@ -45,7 +45,7 @@ func TestShouldRaiseWhenNoHeaderProvidedToDetectTargetURL(t *testing.T) {
 	defer mock.Close()
 	_, err := mock.Ctx.GetOriginalURL()
 	assert.Error(t, err)
-	assert.Equal(t, "Missing header X-Forwarded-Proto", err.Error())
+	assert.Equal(t, "Missing header X-Forwarded-Host", err.Error())
 }
 
 func TestShouldRaiseWhenNoXForwardedHostHeaderProvidedToDetectTargetURL(t *testing.T) {
@@ -67,7 +67,7 @@ func TestShouldRaiseWhenXForwardedProtoIsNotParsable(t *testing.T) {
 
 	_, err := mock.Ctx.GetOriginalURL()
 	assert.Error(t, err)
-	assert.Equal(t, "Unable to parse URL !:;;:,://myhost.local: parse \"!:;;:,://myhost.local\": invalid URI for request", err.Error())
+	assert.Equal(t, "Unable to parse URL !:;;:,://myhost.local/: parse \"!:;;:,://myhost.local/\": invalid URI for request", err.Error())
 }
 
 func TestShouldRaiseWhenXForwardedURIIsNotParsable(t *testing.T) {
@@ -85,34 +85,34 @@ func TestShouldRaiseWhenXForwardedURIIsNotParsable(t *testing.T) {
 
 // Test parseBasicAuth.
 func TestShouldRaiseWhenHeaderDoesNotContainBasicPrefix(t *testing.T) {
-	_, _, err := parseBasicAuth(ProxyAuthorizationHeader, "alzefzlfzemjfej==")
+	_, _, err := parseBasicAuth(headerProxyAuthorization, "alzefzlfzemjfej==")
 	assert.Error(t, err)
 	assert.Equal(t, "Basic prefix not found in Proxy-Authorization header", err.Error())
 }
 
 func TestShouldRaiseWhenCredentialsAreNotInBase64(t *testing.T) {
-	_, _, err := parseBasicAuth(ProxyAuthorizationHeader, "Basic alzefzlfzemjfej==")
+	_, _, err := parseBasicAuth(headerProxyAuthorization, "Basic alzefzlfzemjfej==")
 	assert.Error(t, err)
 	assert.Equal(t, "illegal base64 data at input byte 16", err.Error())
 }
 
 func TestShouldRaiseWhenCredentialsAreNotInCorrectForm(t *testing.T) {
 	// The decoded format should be user:password.
-	_, _, err := parseBasicAuth(ProxyAuthorizationHeader, "Basic am9obiBwYXNzd29yZA==")
+	_, _, err := parseBasicAuth(headerProxyAuthorization, "Basic am9obiBwYXNzd29yZA==")
 	assert.Error(t, err)
-	assert.Equal(t, "Format of Proxy-Authorization header must be user:password", err.Error())
+	assert.Equal(t, "format of Proxy-Authorization header must be user:password", err.Error())
 }
 
 func TestShouldUseProvidedHeaderName(t *testing.T) {
 	// The decoded format should be user:password.
-	_, _, err := parseBasicAuth("HeaderName", "")
+	_, _, err := parseBasicAuth([]byte("HeaderName"), "")
 	assert.Error(t, err)
 	assert.Equal(t, "Basic prefix not found in HeaderName header", err.Error())
 }
 
 func TestShouldReturnUsernameAndPassword(t *testing.T) {
 	// the decoded format should be user:password.
-	user, password, err := parseBasicAuth(ProxyAuthorizationHeader, "Basic am9objpwYXNzd29yZA==")
+	user, password, err := parseBasicAuth(headerProxyAuthorization, "Basic am9objpwYXNzd29yZA==")
 	assert.NoError(t, err)
 	assert.Equal(t, "john", user)
 	assert.Equal(t, "password", password)
@@ -144,7 +144,7 @@ func TestShouldCheckAuthorizationMatching(t *testing.T) {
 		{"deny", authentication.TwoFactor, Forbidden},
 	}
 
-	url, _ := url.ParseRequestURI("https://test.example.com")
+	u, _ := url.ParseRequestURI("https://test.example.com")
 
 	for _, rule := range rules {
 		authorizer := authorization.NewAuthorizer(&schema.Configuration{
@@ -161,7 +161,7 @@ func TestShouldCheckAuthorizationMatching(t *testing.T) {
 			username = testUsername
 		}
 
-		matching := isTargetURLAuthorized(authorizer, *url, username, []string{}, net.ParseIP("127.0.0.1"), []byte("GET"), rule.AuthLevel)
+		matching := isTargetURLAuthorized(authorizer, *u, username, []string{}, net.ParseIP("127.0.0.1"), []byte("GET"), rule.AuthLevel)
 		assert.Equal(t, rule.ExpectedMatching, matching, "policy=%s, authLevel=%v, expected=%v, actual=%v",
 			rule.Policy, rule.AuthLevel, rule.ExpectedMatching, matching)
 	}
@@ -176,8 +176,7 @@ func TestShouldVerifyWrongCredentials(t *testing.T) {
 		CheckUserPassword(gomock.Eq("john"), gomock.Eq("password")).
 		Return(false, nil)
 
-	url, _ := url.ParseRequestURI("https://test.example.com")
-	_, _, _, _, _, err := verifyBasicAuth(ProxyAuthorizationHeader, []byte("Basic am9objpwYXNzd29yZA=="), *url, mock.Ctx)
+	_, _, _, _, _, err := verifyBasicAuth(mock.Ctx, headerProxyAuthorization, []byte("Basic am9objpwYXNzd29yZA=="))
 
 	assert.Error(t, err)
 }
@@ -603,7 +602,7 @@ func TestShouldDestroySessionWhenInactiveForTooLongUsingDurationNotation(t *test
 	clock := mocks.TestingClock{}
 	clock.Set(time.Now())
 
-	mock.Ctx.Configuration.Session.Inactivity = "10s"
+	mock.Ctx.Configuration.Session.Inactivity = time.Second * 10
 	// Reload the session provider since the configuration is indirect.
 	mock.Ctx.Providers.SessionProvider = session.NewProvider(mock.Ctx.Configuration.Session, nil)
 	assert.Equal(t, time.Second*10, mock.Ctx.Providers.SessionProvider.Inactivity)
@@ -718,16 +717,43 @@ func TestShouldRedirectWhenSessionInactiveForTooLongAndRDParamProvided(t *testin
 	mock.Ctx.QueryArgs().Add("rd", "https://login.example.com")
 	mock.Ctx.Request.Header.Set("X-Original-URL", "https://two-factor.example.com")
 	mock.Ctx.Request.Header.Set("X-Forwarded-Method", "GET")
-
+	mock.Ctx.Request.Header.Set("Accept", "text/html; charset=utf-8")
 	VerifyGet(verifyGetCfg)(mock.Ctx)
 
-	assert.Equal(t, "Found. Redirecting to https://login.example.com?rd=https%3A%2F%2Ftwo-factor.example.com&rm=GET",
+	assert.Equal(t, "<a href=\"https://login.example.com/?rd=https%3A%2F%2Ftwo-factor.example.com&amp;rm=GET\">Found</a>",
 		string(mock.Ctx.Response.Body()))
 	assert.Equal(t, 302, mock.Ctx.Response.StatusCode())
 
 	// Check the inactivity timestamp has been updated to current time in the new session.
 	newUserSession := mock.Ctx.GetSession()
 	assert.Equal(t, clock.Now().Unix(), newUserSession.LastActivity)
+}
+
+func TestShouldRedirectWithCorrectStatusCodeBasedOnRequestMethod(t *testing.T) {
+	mock := mocks.NewMockAutheliaCtx(t)
+	defer mock.Close()
+
+	mock.Ctx.QueryArgs().Add("rd", "https://login.example.com")
+	mock.Ctx.Request.Header.Set("X-Original-URL", "https://two-factor.example.com")
+	mock.Ctx.Request.Header.Set("X-Forwarded-Method", "GET")
+	mock.Ctx.Request.Header.Set("Accept", "text/html; charset=utf-8")
+
+	VerifyGet(verifyGetCfg)(mock.Ctx)
+
+	assert.Equal(t, "<a href=\"https://login.example.com/?rd=https%3A%2F%2Ftwo-factor.example.com&amp;rm=GET\">Found</a>",
+		string(mock.Ctx.Response.Body()))
+	assert.Equal(t, 302, mock.Ctx.Response.StatusCode())
+
+	mock.Ctx.QueryArgs().Add("rd", "https://login.example.com")
+	mock.Ctx.Request.Header.Set("X-Original-URL", "https://two-factor.example.com")
+	mock.Ctx.Request.Header.Set("X-Forwarded-Method", "POST")
+	mock.Ctx.Request.Header.Set("Accept", "text/html; charset=utf-8")
+
+	VerifyGet(verifyGetCfg)(mock.Ctx)
+
+	assert.Equal(t, "<a href=\"https://login.example.com/?rd=https%3A%2F%2Ftwo-factor.example.com&amp;rm=POST\">See Other</a>",
+		string(mock.Ctx.Response.Body()))
+	assert.Equal(t, 303, mock.Ctx.Response.StatusCode())
 }
 
 func TestShouldUpdateInactivityTimestampEvenWhenHittingForbiddenResources(t *testing.T) {
@@ -776,12 +802,13 @@ func TestShouldURLEncodeRedirectionURLParameter(t *testing.T) {
 	require.NoError(t, err)
 
 	mock.Ctx.Request.Header.Set("X-Original-URL", "https://two-factor.example.com")
+	mock.Ctx.Request.Header.Set("Accept", "text/html; charset=utf-8")
 	mock.Ctx.Request.SetHost("mydomain.com")
 	mock.Ctx.Request.SetRequestURI("/?rd=https://auth.mydomain.com")
 
 	VerifyGet(verifyGetCfg)(mock.Ctx)
 
-	assert.Equal(t, "Found. Redirecting to https://auth.mydomain.com?rd=https%3A%2F%2Ftwo-factor.example.com",
+	assert.Equal(t, "<a href=\"https://auth.mydomain.com/?rd=https%3A%2F%2Ftwo-factor.example.com\">Found</a>",
 		string(mock.Ctx.Response.Body()))
 }
 
@@ -996,7 +1023,7 @@ func TestShouldDestroySessionWhenUserNotExist(t *testing.T) {
 	userSession = mock.Ctx.GetSession()
 	assert.Equal(t, clock.Now().Add(5*time.Minute).Unix(), userSession.RefreshTTL.Unix())
 
-	// Simulate a Deleted User
+	// Simulate a Deleted User.
 	userSession.RefreshTTL = clock.Now().Add(-1 * time.Minute)
 	err = mock.Ctx.SaveSession(userSession)
 
@@ -1184,7 +1211,7 @@ func TestShouldCheckValidSessionUsernameHeaderAndReturn200(t *testing.T) {
 	require.NoError(t, err)
 
 	mock.Ctx.Request.Header.Set("X-Original-URL", "https://one-factor.example.com")
-	mock.Ctx.Request.Header.Set(SessionUsernameHeader, testUsername)
+	mock.Ctx.Request.Header.SetBytesK(headerSessionUsername, testUsername)
 	VerifyGet(verifyGetCfg)(mock.Ctx)
 
 	assert.Equal(t, expectedStatusCode, mock.Ctx.Response.StatusCode())
@@ -1208,7 +1235,7 @@ func TestShouldCheckInvalidSessionUsernameHeaderAndReturn401(t *testing.T) {
 	require.NoError(t, err)
 
 	mock.Ctx.Request.Header.Set("X-Original-URL", "https://one-factor.example.com")
-	mock.Ctx.Request.Header.Set(SessionUsernameHeader, "root")
+	mock.Ctx.Request.Header.SetBytesK(headerSessionUsername, "root")
 	VerifyGet(verifyGetCfg)(mock.Ctx)
 
 	assert.Equal(t, expectedStatusCode, mock.Ctx.Response.StatusCode())

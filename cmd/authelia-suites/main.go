@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,8 +10,8 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	"github.com/authelia/authelia/internal/suites"
-	"github.com/authelia/authelia/internal/utils"
+	"github.com/authelia/authelia/v4/internal/suites"
+	"github.com/authelia/authelia/v4/internal/utils"
 )
 
 var tmpDirectory = "/tmp/authelia/suites/"
@@ -64,7 +63,7 @@ func main() {
 }
 
 func createRunningSuiteFile(suite string) error {
-	return ioutil.WriteFile(runningSuiteFile, []byte(suite), 0600)
+	return os.WriteFile(runningSuiteFile, []byte(suite), 0600)
 }
 
 func removeRunningSuiteFile() error {
@@ -126,7 +125,7 @@ func setupSuite(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	// Create the .suite file
+	// Create the .suite file.
 	if err := createRunningSuiteFile(suiteName); err != nil {
 		log.Fatal(err)
 	}

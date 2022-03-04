@@ -1,7 +1,9 @@
 ---
-port: 9091
-tls_cert: /config/ssl/cert.pem
-tls_key: /config/ssl/key.pem
+server:
+  port: 9091
+  tls:
+    certificate: /config/ssl/cert.pem
+    key: /config/ssl/key.pem
 
 log:
   level: debug
@@ -25,6 +27,7 @@ session:
     port: 6379
 
 storage:
+  encryption_key: a_not_so_secure_encryption_key
   local:
     path: /config/db.sqlite
 

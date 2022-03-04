@@ -4,7 +4,7 @@
 
   [![Build](https://img.shields.io/buildkite/d6543d3ece3433f46dbe5fd9fcfaf1f68a6dbc48eb1048bc22/master?logo=buildkite&style=flat-square&color=brightgreen)](https://buildkite.com/authelia/authelia)
   [![Go Report Card](https://goreportcard.com/badge/github.com/authelia/authelia?logo=go&style=flat-square)](https://goreportcard.com/report/github.com/authelia/authelia)
-  [![Docker Tag](https://img.shields.io/docker/v/authelia/authelia/latest?logo=docker&style=flat-square&color=blue&sort=semver)](https://microbadger.com/images/authelia/authelia)
+  [![Docker Tag](https://img.shields.io/docker/v/authelia/authelia/latest?logo=docker&style=flat-square&color=blue&sort=semver)](https://hub.docker.com/r/authelia/authelia/tags)
   [![Docker Size](https://img.shields.io/docker/image-size/authelia/authelia/latest?logo=docker&style=flat-square&color=blue&sort=semver)](https://hub.docker.com/r/authelia/authelia/tags)
   [![GitHub Release](https://img.shields.io/github/release/authelia/authelia.svg?logo=github&style=flat-square&color=blue)](https://github.com/authelia/authelia/releases)
   [![AUR source version](https://img.shields.io/aur/version/authelia?logo=arch-linux&label=authelia&style=flat-square&color=blue)](https://aur.archlinux.org/packages/authelia/)
@@ -13,7 +13,7 @@
   [![License](https://img.shields.io/github/license/authelia/authelia?logo=apache&style=flat-square&color=blue)][Apache 2.0]
   [![Sponsor](https://img.shields.io/opencollective/all/authelia-sponsors?logo=Open%20Collective&label=financial%20contributors&style=flat-square&color=blue)](https://opencollective.com/authelia-sponsors)
   [![Discord](https://img.shields.io/discord/707844280412012608?label=discord&logo=discord&style=flat-square&color=blue)](https://discord.authelia.com)
-  [![Matrix](https://img.shields.io/matrix/authelia:matrix.org?label=matrix&logo=matrix&style=flat-square&color=blue)](https://riot.im/app/#/room/#authelia:matrix.org)
+  [![Matrix](https://img.shields.io/matrix/authelia-support:matrix.org?label=matrix&logo=matrix&style=flat-square&color=blue)](https://matrix.to/#/#support:authelia.com)
 
 **Authelia** is an open-source authentication and authorization server providing two-factor authentication and single 
 sign-on (SSO) for your applications via a web portal. It acts as a companion for reverse proxies like [nginx], [Traefik] 
@@ -52,9 +52,9 @@ Here is what Authelia's portal looks like:
 This is a list of the key features of Authelia:
 
 * Several second factor methods:
-  * **[Security Key (U2F)](https://www.authelia.com/docs/features/2fa/security-key)** with [Yubikey].
-  * **[Time-based One-Time password](https://www.authelia.com/docs/features/2fa/one-time-password)** 
-    with [Google Authenticator].
+  * **[Security Keys](https://www.authelia.com/docs/features/2fa/security-key)** that support [FIDO2]&nbsp;[Webauthn] with devices like a [YubiKey].
+  * **[Time-based One-Time password](https://www.authelia.com/docs/features/2fa/one-time-password)**
+    with compatible authenticator applications.
   * **[Mobile Push Notifications](https://www.authelia.com/docs/features/2fa/push-notifications)** 
     with [Duo](https://duo.com/).
 * Password reset with identity verification using email confirmation.
@@ -65,7 +65,7 @@ This is a list of the key features of Authelia:
 * Support of basic authentication for endpoints protected by the one-factor policy.
 * Highly available using a remote database and Redis as a highly available KV store.
 * Compatible with [Traefik](https://doc.traefik.io/traefik) out of the box using the
-  [ForwardAuth](https://doc.traefik.io/traefik/middlewares/forwardauth/) middleware.
+  [ForwardAuth](https://doc.traefik.io/traefik/middlewares/http/forwardauth/) middleware.
 * Curated configuration from [LinuxServer](https://www.linuxserver.io/) via their 
   [Swag](https://docs.linuxserver.io/general/swag) container as well as a 
   [guide](https://blog.linuxserver.io/2020/08/26/setting-up-authelia/).
@@ -142,25 +142,28 @@ For more information about [security](https://www.authelia.com/docs/security/) r
 
 ## Contact Options
 
-Several contact options exist for our community, the primary one being [Matrix](#matrix).
+Several contact options exist for our community, the primary one being [Matrix](#matrix). These are in addition to
+[GitHub issues](https://github.com/authelia/authelia/issues) for creating a [new issue](https://github.com/authelia/authelia/issues/new/choose).
 
 ### Matrix
 
-You can join the [Matrix Space](https://app.element.io/#/room/!qcxpPdXBiGBSTbFAJE:matrix.org?via=matrix.org) which 
-includes both the [Support Room](https://riot.im/app/#/room/#authelia:matrix.org) and the 
-[Contributing Room](https://riot.im/app/#/room/#authelia-contributing:matrix.org). The core team members are identified
-as administrators in the Rooms and Space.
+Community members are invited to join the [Matrix Space](https://matrix.to/#/#community:authelia.com) which includes both
+the [Support Room](https://matrix.to/#/#support:authelia.com) and the [Contributing Room](https://matrix.to/#/#contributing:authelia.com).
+
+- The core team members are identified as administrators in the Space and individual Rooms.
+- All channels are linked to [Discord](#discord).
 
 ### Discord
 
-You can join the [Discord Server](https://discord.authelia.com) where the
-[#support](https://discord.com/channels/707844280412012608/707844280412012612) and 
-[#contributing](https://discord.com/channels/707844280412012608/804943261265297408) channels link to [Matrix](#matrix).
+Community members are invited to join the [Discord Server](https://discord.authelia.com).
+
+- The core team members are identified by the <span style="color:#BA55D3;">**CORE TEAM**</span> role in Discord.
+- The [#support] and [#contributing] channels are linked to [Matrix](#matrix).
 
 ### Email
 
 You can contact the core team by email via [team@authelia.com](mailto:team@authelia.com). Please note the  
-[security@authelia.com](mailto:security@authelia.com) is also available but is strictly reserved for security related 
+[security@authelia.com](mailto:security@authelia.com) is also available but is strictly reserved for [security] related
 matters.
 
 ## Breaking changes
@@ -264,6 +267,17 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://www.aarsen.me/"><img src="https://avatars.githubusercontent.com/u/7805050?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Arsenović Arsen</b></sub></a><br /><a href="https://github.com/authelia/authelia/commits?author=ArsenArsen" title="Code">💻</a> <a href="https://github.com/authelia/authelia/commits?author=ArsenArsen" title="Tests">⚠️</a> <a href="#security-ArsenArsen" title="Security">🛡️</a></td>
     <td align="center"><a href="https://github.com/dakriy"><img src="https://avatars.githubusercontent.com/u/13756065?v=4?s=100" width="100px;" alt=""/><br /><sub><b>dakriy</b></sub></a><br /><a href="https://github.com/authelia/authelia/commits?author=dakriy" title="Code">💻</a></td>
     <td align="center"><a href="https://github.com/davama"><img src="https://avatars.githubusercontent.com/u/5359152?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Dave</b></sub></a><br /><a href="#userTesting-davama" title="User Testing">📓</a></td>
+    <td align="center"><a href="https://github.com/nreymundo"><img src="https://avatars.githubusercontent.com/u/5833447?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Nicolas Reymundo</b></sub></a><br /><a href="https://github.com/authelia/authelia/commits?author=nreymundo" title="Documentation">📖</a></td>
+    <td align="center"><a href="https://github.com/polandy"><img src="https://avatars.githubusercontent.com/u/3670670?v=4?s=100" width="100px;" alt=""/><br /><sub><b>polandy</b></sub></a><br /><a href="https://github.com/authelia/authelia/commits?author=polandy" title="Documentation">📖</a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/you1996"><img src="https://avatars.githubusercontent.com/u/45292366?v=4?s=100" width="100px;" alt=""/><br /><sub><b>yossbg</b></sub></a><br /><a href="https://github.com/authelia/authelia/commits?author=you1996" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/mpdcampbell"><img src="https://avatars.githubusercontent.com/u/47434940?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Michael Campbell</b></sub></a><br /><a href="https://github.com/authelia/authelia/commits?author=mpdcampbell" title="Documentation">📖</a></td>
+    <td align="center"><a href="https://sievenpiper.co"><img src="https://avatars.githubusercontent.com/u/1131882?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Justin Sievenpiper</b></sub></a><br /><a href="https://github.com/authelia/authelia/commits?author=jsievenpiper" title="Code">💻</a></td>
+    <td align="center"><a href="https://github.com/kaysond"><img src="https://avatars.githubusercontent.com/u/1147328?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Aram Akhavan</b></sub></a><br /><a href="https://github.com/authelia/authelia/commits?author=kaysond" title="Documentation">📖</a></td>
+    <td align="center"><a href="https://skhuf.net"><img src="https://avatars.githubusercontent.com/u/286341?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Shadow</b></sub></a><br /><a href="https://github.com/authelia/authelia/commits?author=shadow7412" title="Documentation">📖</a></td>
+    <td align="center"><a href="https://github.com/tarioch"><img src="https://avatars.githubusercontent.com/u/2998148?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Patrick Ruckstuhl</b></sub></a><br /><a href="https://github.com/authelia/authelia/commits?author=tarioch" title="Documentation">📖</a></td>
+    <td align="center"><a href="https://github.com/FineWolf"><img src="https://avatars.githubusercontent.com/u/203591?v=4?s=100" width="100px;" alt=""/><br /><sub><b>Andrew Moore</b></sub></a><br /><a href="https://github.com/authelia/authelia/commits?author=FineWolf" title="Code">💻</a> <a href="https://github.com/authelia/authelia/commits?author=FineWolf" title="Documentation">📖</a> <a href="https://github.com/authelia/authelia/commits?author=FineWolf" title="Tests">⚠️</a></td>
   </tr>
 </table>
 
@@ -332,13 +346,16 @@ for providing us with free licenses to their great tools.
 
 [Apache 2.0]: https://www.apache.org/licenses/LICENSE-2.0
 [TOTP]: https://en.wikipedia.org/wiki/Time-based_One-time_Password_Algorithm
-[Security Key]: https://www.yubico.com/about/background/fido/
-[Yubikey]: https://www.yubico.com/products/yubikey-hardware/yubikey4/
+[FIDO2]: https://www.yubico.com/authentication-standards/fido2/
+[YubiKey]: https://www.yubico.com/products/yubikey-5-overview/
+[Webauthn]: https://www.yubico.com/authentication-standards/webauthn/
 [auth_request]: https://nginx.org/en/docs/http/ngx_http_auth_request_module.html
-[Google Authenticator]: https://play.google.com/store/apps/details?id=com.google.android.apps.authenticator2&hl=en
 [config.template.yml]: ./config.template.yml
 [nginx]: https://www.nginx.com/
 [Traefik]: https://traefik.io/
 [HAProxy]: https://www.haproxy.org/
 [Docker]: https://docker.com/
 [Kubernetes]: https://kubernetes.io/
+[security]: https://github.com/authelia/authelia/security/policy
+[#support]: https://discord.com/channels/707844280412012608/707844280412012612
+[#contributing]: https://discord.com/channels/707844280412012608/804943261265297408

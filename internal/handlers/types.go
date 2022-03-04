@@ -1,9 +1,7 @@
 package handlers
 
 import (
-	"github.com/tstranex/u2f"
-
-	"github.com/authelia/authelia/internal/authentication"
+	"github.com/authelia/authelia/v4/internal/authentication"
 )
 
 // MethodList is the list of available methods.
@@ -11,19 +9,9 @@ type MethodList = []string
 
 type authorizationMatching int
 
-// UserInfo is the model of user info and second factor preferences.
-type UserInfo struct {
-	// The users display name.
-	DisplayName string `json:"display_name"`
-
-	// The preferred 2FA method.
-	Method string `json:"method" valid:"required"`
-
-	// True if a security key has been registered.
-	HasU2F bool `json:"has_u2f" valid:"required"`
-
-	// True if a TOTP device has been registered.
-	HasTOTP bool `json:"has_totp" valid:"required"`
+// configurationBody the content returned by the configuration endpoint.
+type configurationBody struct {
+	AvailableMethods MethodList `json:"available_methods"`
 }
 
 // signTOTPRequestBody model of the request body received by TOTP authentication endpoint.
@@ -32,14 +20,19 @@ type signTOTPRequestBody struct {
 	TargetURL string `json:"targetURL"`
 }
 
-// signU2FRequestBody model of the request body of U2F authentication endpoint.
-type signU2FRequestBody struct {
-	SignResponse u2f.SignResponse `json:"signResponse"`
-	TargetURL    string           `json:"targetURL"`
+// signWebauthnRequestBody model of the request body of Webauthn authentication endpoint.
+type signWebauthnRequestBody struct {
+	TargetURL string `json:"targetURL"`
 }
 
 type signDuoRequestBody struct {
 	TargetURL string `json:"targetURL"`
+	Passcode  string `json:"passcode"`
+}
+
+// preferred2FAMethodBody the selected 2FA method.
+type preferred2FAMethodBody struct {
+	Method string `json:"method" valid:"required"`
 }
 
 // firstFactorRequestBody represents the JSON body received by the endpoint.
@@ -53,6 +46,16 @@ type firstFactorRequestBody struct {
 	// TODO(c.michaud): add required validation once the above PR is merged.
 }
 
+// checkURIWithinDomainRequestBody represents the JSON body received by the endpoint checking if an URI is within
+// the configured domain.
+type checkURIWithinDomainRequestBody struct {
+	URI string `json:"uri"`
+}
+
+type checkURIWithinDomainResponseBody struct {
+	OK bool `json:"ok"`
+}
+
 // redirectResponse represent the response sent by the first factor endpoint
 // when a redirection URL has been provided.
 type redirectResponse struct {
@@ -63,6 +66,34 @@ type redirectResponse struct {
 type TOTPKeyResponse struct {
 	Base32Secret string `json:"base32_secret"`
 	OTPAuthURL   string `json:"otpauth_url"`
+}
+
+// DuoDeviceBody the selected Duo device and method.
+type DuoDeviceBody struct {
+	Device string `json:"device" valid:"required"`
+	Method string `json:"method" valid:"required"`
+}
+
+// DuoDevice represents Duo devices and methods.
+type DuoDevice struct {
+	Device       string   `json:"device"`
+	DisplayName  string   `json:"display_name"`
+	Capabilities []string `json:"capabilities"`
+}
+
+// DuoDevicesResponse represents all available user devices and methods as well as an optional enrollment url.
+type DuoDevicesResponse struct {
+	Result    string      `json:"result" valid:"required"`
+	Devices   []DuoDevice `json:"devices,omitempty"`
+	EnrollURL string      `json:"enroll_url,omitempty"`
+}
+
+// DuoSignResponse represents a result of the preauth and or auth call with further optional info.
+type DuoSignResponse struct {
+	Result    string      `json:"result" valid:"required"`
+	Devices   []DuoDevice `json:"devices,omitempty"`
+	Redirect  string      `json:"redirect,omitempty"`
+	EnrollURL string      `json:"enroll_url,omitempty"`
 }
 
 // StateResponse represents the response sent by the state endpoint.

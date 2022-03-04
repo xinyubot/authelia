@@ -1,7 +1,7 @@
 ---
 layout: default
 title: MySQL
-parent: Storage backends
+parent: Storage Backends
 grand_parent: Configuration
 nav_order: 2
 ---
@@ -14,15 +14,20 @@ The MySQL storage provider.
 
 ```yaml
 storage:
+  encryption_key: a_very_important_secret
   mysql:
     host: 127.0.0.1
     port: 3306
     database: authelia
     username: authelia
     password: mypassword
+    timeout: 5s
 ```
 
 ## Options
+
+### encryption_key
+See the [encryption_key docs](./index.md#encryption_key).
 
 ### host
 <div markdown="1">
@@ -84,3 +89,15 @@ required: yes
 
 The password paired with the username used to connect to the database. Can also be defined using a
 [secret](../secrets.md) which is also the recommended way when running as a container.
+
+### timeout
+<div markdown="1">
+type: duration
+{: .label .label-config .label-purple }
+default: 5s
+{: .label .label-config .label-blue }
+required: no
+{: .label .label-config .label-green }
+</div>
+
+The SQL connection timeout.

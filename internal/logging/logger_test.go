@@ -2,17 +2,21 @@ package logging
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
+	"runtime"
 	"testing"
 
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
 )
 
 func TestShouldWriteLogsToFile(t *testing.T) {
-	dir, err := ioutil.TempDir("/tmp", "logs-dir")
+	dir, err := os.MkdirTemp("/tmp", "logs-dir")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -20,7 +24,7 @@ func TestShouldWriteLogsToFile(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	path := fmt.Sprintf("%s/authelia.log", dir)
-	err = InitializeLogger("text", path, false)
+	err = InitializeLogger(schema.LogConfiguration{Format: "text", FilePath: path, KeepStdout: false}, false)
 	require.NoError(t, err)
 
 	Logger().Info("This is a test")
@@ -28,14 +32,14 @@ func TestShouldWriteLogsToFile(t *testing.T) {
 	f, err := os.OpenFile(path, os.O_RDONLY, 0)
 	require.NoError(t, err)
 
-	b, err := ioutil.ReadAll(f)
+	b, err := io.ReadAll(f)
 	require.NoError(t, err)
 
 	assert.Contains(t, string(b), "level=info msg=\"This is a test\"\n")
 }
 
 func TestShouldWriteLogsToFileAndStdout(t *testing.T) {
-	dir, err := ioutil.TempDir("/tmp", "logs-dir")
+	dir, err := os.MkdirTemp("/tmp", "logs-dir")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -43,7 +47,7 @@ func TestShouldWriteLogsToFileAndStdout(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	path := fmt.Sprintf("%s/authelia.log", dir)
-	err = InitializeLogger("text", path, true)
+	err = InitializeLogger(schema.LogConfiguration{Format: "text", FilePath: path, KeepStdout: true}, false)
 	require.NoError(t, err)
 
 	Logger().Info("This is a test")
@@ -51,14 +55,14 @@ func TestShouldWriteLogsToFileAndStdout(t *testing.T) {
 	f, err := os.OpenFile(path, os.O_RDONLY, 0)
 	require.NoError(t, err)
 
-	b, err := ioutil.ReadAll(f)
+	b, err := io.ReadAll(f)
 	require.NoError(t, err)
 
 	assert.Contains(t, string(b), "level=info msg=\"This is a test\"\n")
 }
 
 func TestShouldFormatLogsAsJSON(t *testing.T) {
-	dir, err := ioutil.TempDir("/tmp", "logs-dir")
+	dir, err := os.MkdirTemp("/tmp", "logs-dir")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -66,7 +70,7 @@ func TestShouldFormatLogsAsJSON(t *testing.T) {
 	defer os.RemoveAll(dir)
 
 	path := fmt.Sprintf("%s/authelia.log", dir)
-	err = InitializeLogger("json", path, false)
+	err = InitializeLogger(schema.LogConfiguration{Format: "json", FilePath: path, KeepStdout: false}, false)
 	require.NoError(t, err)
 
 	Logger().Info("This is a test")
@@ -74,8 +78,38 @@ func TestShouldFormatLogsAsJSON(t *testing.T) {
 	f, err := os.OpenFile(path, os.O_RDONLY, 0)
 	require.NoError(t, err)
 
-	b, err := ioutil.ReadAll(f)
+	b, err := io.ReadAll(f)
 	require.NoError(t, err)
 
 	assert.Contains(t, string(b), "{\"level\":\"info\",\"msg\":\"This is a test\",")
+}
+
+func TestShouldRaiseErrorOnInvalidFile(t *testing.T) {
+	err := InitializeLogger(schema.LogConfiguration{FilePath: "/not/a/valid/path/to.log"}, false)
+
+	switch runtime.GOOS {
+	case "windows":
+		assert.EqualError(t, err, "open /not/a/valid/path/to.log: The system cannot find the path specified.")
+	default:
+		assert.EqualError(t, err, "open /not/a/valid/path/to.log: no such file or directory")
+	}
+}
+
+func TestSetLevels(t *testing.T) {
+	assert.Equal(t, logrus.InfoLevel, logrus.GetLevel())
+
+	setLevelStr("error", false)
+	assert.Equal(t, logrus.ErrorLevel, logrus.GetLevel())
+
+	setLevelStr("warn", false)
+	assert.Equal(t, logrus.WarnLevel, logrus.GetLevel())
+
+	setLevelStr("info", false)
+	assert.Equal(t, logrus.InfoLevel, logrus.GetLevel())
+
+	setLevelStr("debug", false)
+	assert.Equal(t, logrus.DebugLevel, logrus.GetLevel())
+
+	setLevelStr("trace", false)
+	assert.Equal(t, logrus.TraceLevel, logrus.GetLevel())
 }

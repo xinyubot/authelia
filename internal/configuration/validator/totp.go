@@ -2,25 +2,41 @@ package validator
 
 import (
 	"fmt"
+	"strings"
 
-	"github.com/authelia/authelia/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/utils"
 )
 
 // ValidateTOTP validates and update TOTP configuration.
-func ValidateTOTP(configuration *schema.TOTPConfiguration, validator *schema.StructValidator) {
-	if configuration.Issuer == "" {
-		configuration.Issuer = schema.DefaultTOTPConfiguration.Issuer
+func ValidateTOTP(config *schema.Configuration, validator *schema.StructValidator) {
+	if config.TOTP.Issuer == "" {
+		config.TOTP.Issuer = schema.DefaultTOTPConfiguration.Issuer
 	}
 
-	if configuration.Period == 0 {
-		configuration.Period = schema.DefaultTOTPConfiguration.Period
-	} else if configuration.Period < 0 {
-		validator.Push(fmt.Errorf("TOTP Period must be 1 or more"))
+	if config.TOTP.Algorithm == "" {
+		config.TOTP.Algorithm = schema.DefaultTOTPConfiguration.Algorithm
+	} else {
+		config.TOTP.Algorithm = strings.ToUpper(config.TOTP.Algorithm)
+
+		if !utils.IsStringInSlice(config.TOTP.Algorithm, schema.TOTPPossibleAlgorithms) {
+			validator.Push(fmt.Errorf(errFmtTOTPInvalidAlgorithm, strings.Join(schema.TOTPPossibleAlgorithms, "', '"), config.TOTP.Algorithm))
+		}
 	}
 
-	if configuration.Skew == nil {
-		configuration.Skew = schema.DefaultTOTPConfiguration.Skew
-	} else if *configuration.Skew < 0 {
-		validator.Push(fmt.Errorf("TOTP Skew must be 0 or more"))
+	if config.TOTP.Period == 0 {
+		config.TOTP.Period = schema.DefaultTOTPConfiguration.Period
+	} else if config.TOTP.Period < 15 {
+		validator.Push(fmt.Errorf(errFmtTOTPInvalidPeriod, config.TOTP.Period))
+	}
+
+	if config.TOTP.Digits == 0 {
+		config.TOTP.Digits = schema.DefaultTOTPConfiguration.Digits
+	} else if config.TOTP.Digits != 6 && config.TOTP.Digits != 8 {
+		validator.Push(fmt.Errorf(errFmtTOTPInvalidDigits, config.TOTP.Digits))
+	}
+
+	if config.TOTP.Skew == nil {
+		config.TOTP.Skew = schema.DefaultTOTPConfiguration.Skew
 	}
 }

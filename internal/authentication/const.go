@@ -19,8 +19,8 @@ const (
 const (
 	// TOTP Method using Time-Based One-Time Password applications like Google Authenticator.
 	TOTP = "totp"
-	// U2F Method using U2F devices like Yubikeys.
-	U2F = "u2f"
+	// Webauthn Method using Webauthn devices like YubiKeys.
+	Webauthn = "webauthn"
 	// Push Method using Duo application to receive push notifications.
 	Push = "mobile_push"
 )
@@ -30,8 +30,14 @@ const (
 	ldapOIDPasswdModifyExtension    = "1.3.6.1.4.1.4203.1.11.1" // http://oidref.com/1.3.6.1.4.1.4203.1.11.1
 )
 
+const (
+	ldapPlaceholderInput             = "{input}"
+	ldapPlaceholderDistinguishedName = "{dn}"
+	ldapPlaceholderUsername          = "{username}"
+)
+
 // PossibleMethods is the set of all possible 2FA methods.
-var PossibleMethods = []string{TOTP, U2F, Push}
+var PossibleMethods = []string{TOTP, Webauthn, Push}
 
 // CryptAlgo the crypt representation of an algorithm used in the prefix of the hash.
 type CryptAlgo string
@@ -54,7 +60,7 @@ const (
 )
 
 // HashingPossibleSaltCharacters represents valid hashing runes.
-var HashingPossibleSaltCharacters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/")
+var HashingPossibleSaltCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789+/"
 
 // ErrUserNotFound indicates the user wasn't found in the authentication backend.
 var ErrUserNotFound = errors.New("user not found")

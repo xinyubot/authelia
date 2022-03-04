@@ -3,83 +3,61 @@ package validator
 import (
 	"fmt"
 	"os"
+	"strings"
 
-	"github.com/authelia/authelia/internal/configuration/schema"
-	"github.com/authelia/authelia/internal/utils"
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/utils"
 )
 
-var defaultPort = 9091
-
 // ValidateConfiguration and adapt the configuration read from file.
-//nolint:gocyclo // This function is likely to always have lots of if/else statements, as long as we keep the flow clean it should be understandable.
-func ValidateConfiguration(configuration *schema.Configuration, validator *schema.StructValidator) {
-	if configuration.Host == "" {
-		configuration.Host = "0.0.0.0"
-	}
+func ValidateConfiguration(config *schema.Configuration, validator *schema.StructValidator) {
+	var err error
 
-	if configuration.Port == 0 {
-		configuration.Port = defaultPort
-	}
+	if config.CertificatesDirectory != "" {
+		var info os.FileInfo
 
-	if configuration.TLSKey != "" && configuration.TLSCert == "" {
-		validator.Push(fmt.Errorf("No TLS certificate provided, please check the \"tls_cert\" which has been configured"))
-	} else if configuration.TLSKey == "" && configuration.TLSCert != "" {
-		validator.Push(fmt.Errorf("No TLS key provided, please check the \"tls_key\" which has been configured"))
-	}
-
-	if configuration.CertificatesDirectory != "" {
-		info, err := os.Stat(configuration.CertificatesDirectory)
-		if err != nil {
-			validator.Push(fmt.Errorf("Error checking certificate directory: %v", err))
+		if info, err = os.Stat(config.CertificatesDirectory); err != nil {
+			validator.Push(fmt.Errorf("the location 'certificates_directory' could not be inspected: %w", err))
 		} else if !info.IsDir() {
-			validator.Push(fmt.Errorf("The path %s specified for certificate_directory is not a directory", configuration.CertificatesDirectory))
+			validator.Push(fmt.Errorf("the location 'certificates_directory' refers to '%s' is not a directory", config.CertificatesDirectory))
 		}
 	}
 
-	if configuration.JWTSecret == "" {
-		validator.Push(fmt.Errorf("Provide a JWT secret using \"jwt_secret\" key"))
+	if config.JWTSecret == "" {
+		validator.Push(fmt.Errorf("option 'jwt_secret' is required"))
 	}
 
-	if configuration.DefaultRedirectionURL != "" {
-		err := utils.IsStringAbsURL(configuration.DefaultRedirectionURL)
-		if err != nil {
-			validator.Push(fmt.Errorf("Value for \"default_redirection_url\" is invalid: %+v", err))
+	if config.DefaultRedirectionURL != "" {
+		if err = utils.IsStringAbsURL(config.DefaultRedirectionURL); err != nil {
+			validator.Push(fmt.Errorf("option 'default_redirection_url' is invalid: %s", strings.ReplaceAll(err.Error(), "like 'http://' or 'https://'", "like 'ldap://' or 'ldaps://'")))
 		}
 	}
 
-	ValidateTheme(configuration, validator)
+	ValidateTheme(config, validator)
 
-	if configuration.TOTP == nil {
-		configuration.TOTP = &schema.DefaultTOTPConfiguration
-	}
+	ValidateLog(config, validator)
 
-	ValidateLogging(configuration, validator)
+	ValidateTOTP(config, validator)
 
-	ValidateTOTP(configuration.TOTP, validator)
+	ValidateWebauthn(config, validator)
 
-	ValidateAuthenticationBackend(&configuration.AuthenticationBackend, validator)
+	ValidateAuthenticationBackend(&config.AuthenticationBackend, validator)
 
-	ValidateAccessControl(&configuration.AccessControl, validator)
+	ValidateAccessControl(config, validator)
 
-	ValidateRules(configuration.AccessControl, validator)
+	ValidateRules(config, validator)
 
-	ValidateSession(&configuration.Session, validator)
+	ValidateSession(&config.Session, validator)
 
-	if configuration.Regulation == nil {
-		configuration.Regulation = &schema.DefaultRegulationConfiguration
-	}
+	ValidateRegulation(config, validator)
 
-	ValidateRegulation(configuration.Regulation, validator)
+	ValidateServer(config, validator)
 
-	ValidateServer(&configuration.Server, validator)
+	ValidateStorage(config.Storage, validator)
 
-	ValidateStorage(configuration.Storage, validator)
+	ValidateNotifier(config.Notifier, validator)
 
-	if configuration.Notifier == nil {
-		validator.Push(fmt.Errorf("A notifier configuration must be provided"))
-	} else {
-		ValidateNotifier(configuration.Notifier, validator)
-	}
+	ValidateIdentityProviders(&config.IdentityProviders, validator)
 
-	ValidateIdentityProviders(&configuration.IdentityProviders, validator)
+	ValidateNTP(config, validator)
 }

@@ -3,13 +3,11 @@ package server
 import (
 	"embed"
 	"io/fs"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
-	"runtime"
 	"strconv"
-	"strings"
+	"time"
 
 	duoapi "github.com/duosecurity/duo_api_golang"
 	"github.com/fasthttp/router"
@@ -18,11 +16,11 @@ import (
 	"github.com/valyala/fasthttp/fasthttpadaptor"
 	"github.com/valyala/fasthttp/pprofhandler"
 
-	"github.com/authelia/authelia/internal/configuration/schema"
-	"github.com/authelia/authelia/internal/duo"
-	"github.com/authelia/authelia/internal/handlers"
-	"github.com/authelia/authelia/internal/logging"
-	"github.com/authelia/authelia/internal/middlewares"
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/duo"
+	"github.com/authelia/authelia/v4/internal/handlers"
+	"github.com/authelia/authelia/v4/internal/logging"
+	"github.com/authelia/authelia/v4/internal/middlewares"
 )
 
 //go:embed public_html
@@ -30,27 +28,35 @@ var assets embed.FS
 
 func registerRoutes(configuration schema.Configuration, providers middlewares.Providers) fasthttp.RequestHandler {
 	autheliaMiddleware := middlewares.AutheliaMiddleware(configuration, providers)
-	rememberMe := strconv.FormatBool(configuration.Session.RememberMeDuration != "0")
+	rememberMe := strconv.FormatBool(configuration.Session.RememberMeDuration != -1)
 	resetPassword := strconv.FormatBool(!configuration.AuthenticationBackend.DisableResetPassword)
+
+	duoSelfEnrollment := f
+	if configuration.DuoAPI != nil {
+		duoSelfEnrollment = strconv.FormatBool(configuration.DuoAPI.EnableSelfEnrollment)
+	}
 
 	embeddedPath, _ := fs.Sub(assets, "public_html")
 	embeddedFS := fasthttpadaptor.NewFastHTTPHandler(http.FileServer(http.FS(embeddedPath)))
-	rootFiles := []string{"favicon.ico", "manifest.json", "robots.txt"}
 
-	serveIndexHandler := ServeTemplatedFile(embeddedAssets, indexFile, configuration.Server.Path, rememberMe, resetPassword, configuration.Session.Name, configuration.Theme)
-	serveSwaggerHandler := ServeTemplatedFile(swaggerAssets, indexFile, configuration.Server.Path, rememberMe, resetPassword, configuration.Session.Name, configuration.Theme)
-	serveSwaggerAPIHandler := ServeTemplatedFile(swaggerAssets, apiFile, configuration.Server.Path, rememberMe, resetPassword, configuration.Session.Name, configuration.Theme)
+	https := configuration.Server.TLS.Key != "" && configuration.Server.TLS.Certificate != ""
+
+	serveIndexHandler := ServeTemplatedFile(embeddedAssets, indexFile, configuration.Server.AssetPath, duoSelfEnrollment, rememberMe, resetPassword, configuration.Session.Name, configuration.Theme, https)
+	serveSwaggerHandler := ServeTemplatedFile(swaggerAssets, indexFile, configuration.Server.AssetPath, duoSelfEnrollment, rememberMe, resetPassword, configuration.Session.Name, configuration.Theme, https)
+	serveSwaggerAPIHandler := ServeTemplatedFile(swaggerAssets, apiFile, configuration.Server.AssetPath, duoSelfEnrollment, rememberMe, resetPassword, configuration.Session.Name, configuration.Theme, https)
 
 	r := router.New()
-	r.GET("/", serveIndexHandler)
-	r.GET("/api/", serveSwaggerHandler)
-	r.GET("/api/"+apiFile, serveSwaggerAPIHandler)
+	r.GET("/", autheliaMiddleware(serveIndexHandler))
+	r.OPTIONS("/", autheliaMiddleware(handleOPTIONS))
+
+	r.GET("/api/", autheliaMiddleware(serveSwaggerHandler))
+	r.GET("/api/"+apiFile, autheliaMiddleware(serveSwaggerAPIHandler))
 
 	for _, f := range rootFiles {
-		r.GET("/"+f, embeddedFS)
+		r.GET("/"+f, middlewares.AssetOverrideMiddleware(configuration.Server.AssetPath, embeddedFS))
 	}
 
-	r.GET("/static/{filepath:*}", embeddedFS)
+	r.GET("/static/{filepath:*}", middlewares.AssetOverrideMiddleware(configuration.Server.AssetPath, embeddedFS))
 	r.ANY("/api/{filepath:*}", embeddedFS)
 
 	r.GET("/api/health", autheliaMiddleware(handlers.HealthGet))
@@ -62,7 +68,9 @@ func registerRoutes(configuration schema.Configuration, providers middlewares.Pr
 	r.GET("/api/verify", autheliaMiddleware(handlers.VerifyGet(configuration.AuthenticationBackend)))
 	r.HEAD("/api/verify", autheliaMiddleware(handlers.VerifyGet(configuration.AuthenticationBackend)))
 
-	r.POST("/api/firstfactor", autheliaMiddleware(handlers.FirstFactorPost(1000, true)))
+	r.POST("/api/checks/safe-redirection", autheliaMiddleware(handlers.CheckSafeRedirection))
+
+	r.POST("/api/firstfactor", autheliaMiddleware(handlers.FirstFactorPost(middlewares.TimingAttackDelay(10, 250, 85, time.Second))))
 	r.POST("/api/logout", autheliaMiddleware(handlers.LogoutPost))
 
 	// Only register endpoints if forgot password is not disabled.
@@ -82,31 +90,33 @@ func registerRoutes(configuration schema.Configuration, providers middlewares.Pr
 	r.POST("/api/user/info/2fa_method", autheliaMiddleware(
 		middlewares.RequireFirstFactor(handlers.MethodPreferencePost)))
 
-	// TOTP related endpoints.
-	r.POST("/api/secondfactor/totp/identity/start", autheliaMiddleware(
-		middlewares.RequireFirstFactor(handlers.SecondFactorTOTPIdentityStart)))
-	r.POST("/api/secondfactor/totp/identity/finish", autheliaMiddleware(
-		middlewares.RequireFirstFactor(handlers.SecondFactorTOTPIdentityFinish)))
-	r.POST("/api/secondfactor/totp", autheliaMiddleware(
-		middlewares.RequireFirstFactor(handlers.SecondFactorTOTPPost(&handlers.TOTPVerifierImpl{
-			Period: uint(configuration.TOTP.Period),
-			Skew:   uint(*configuration.TOTP.Skew),
-		}))))
+	if !configuration.TOTP.Disable {
+		// TOTP related endpoints.
+		r.GET("/api/user/info/totp", autheliaMiddleware(
+			middlewares.RequireFirstFactor(handlers.UserTOTPGet)))
 
-	// U2F related endpoints.
-	r.POST("/api/secondfactor/u2f/identity/start", autheliaMiddleware(
-		middlewares.RequireFirstFactor(handlers.SecondFactorU2FIdentityStart)))
-	r.POST("/api/secondfactor/u2f/identity/finish", autheliaMiddleware(
-		middlewares.RequireFirstFactor(handlers.SecondFactorU2FIdentityFinish)))
+		r.POST("/api/secondfactor/totp/identity/start", autheliaMiddleware(
+			middlewares.RequireFirstFactor(handlers.SecondFactorTOTPIdentityStart)))
+		r.POST("/api/secondfactor/totp/identity/finish", autheliaMiddleware(
+			middlewares.RequireFirstFactor(handlers.SecondFactorTOTPIdentityFinish)))
+		r.POST("/api/secondfactor/totp", autheliaMiddleware(
+			middlewares.RequireFirstFactor(handlers.SecondFactorTOTPPost)))
+	}
 
-	r.POST("/api/secondfactor/u2f/register", autheliaMiddleware(
-		middlewares.RequireFirstFactor(handlers.SecondFactorU2FRegister)))
+	if !configuration.Webauthn.Disable {
+		// Webauthn Endpoints.
+		r.POST("/api/secondfactor/webauthn/identity/start", autheliaMiddleware(
+			middlewares.RequireFirstFactor(handlers.SecondFactorWebauthnIdentityStart)))
+		r.POST("/api/secondfactor/webauthn/identity/finish", autheliaMiddleware(
+			middlewares.RequireFirstFactor(handlers.SecondFactorWebauthnIdentityFinish)))
+		r.POST("/api/secondfactor/webauthn/attestation", autheliaMiddleware(
+			middlewares.RequireFirstFactor(handlers.SecondFactorWebauthnAttestationPOST)))
 
-	r.POST("/api/secondfactor/u2f/sign_request", autheliaMiddleware(
-		middlewares.RequireFirstFactor(handlers.SecondFactorU2FSignGet)))
-
-	r.POST("/api/secondfactor/u2f/sign", autheliaMiddleware(
-		middlewares.RequireFirstFactor(handlers.SecondFactorU2FSignPost(&handlers.U2FVerifierImpl{}))))
+		r.GET("/api/secondfactor/webauthn/assertion", autheliaMiddleware(
+			middlewares.RequireFirstFactor(handlers.SecondFactorWebauthnAssertionGET)))
+		r.POST("/api/secondfactor/webauthn/assertion", autheliaMiddleware(
+			middlewares.RequireFirstFactor(handlers.SecondFactorWebauthnAssertionPOST)))
+	}
 
 	// Configure DUO api endpoint only if configuration exists.
 	if configuration.DuoAPI != nil {
@@ -123,8 +133,14 @@ func registerRoutes(configuration schema.Configuration, providers middlewares.Pr
 				configuration.DuoAPI.Hostname, ""))
 		}
 
+		r.GET("/api/secondfactor/duo_devices", autheliaMiddleware(
+			middlewares.RequireFirstFactor(handlers.SecondFactorDuoDevicesGet(duoAPI))))
+
 		r.POST("/api/secondfactor/duo", autheliaMiddleware(
 			middlewares.RequireFirstFactor(handlers.SecondFactorDuoPost(duoAPI))))
+
+		r.POST("/api/secondfactor/duo_device", autheliaMiddleware(
+			middlewares.RequireFirstFactor(handlers.SecondFactorDuoDevicePost)))
 	}
 
 	if configuration.Server.EnablePprof {
@@ -135,11 +151,11 @@ func registerRoutes(configuration schema.Configuration, providers middlewares.Pr
 		r.GET("/debug/vars", expvarhandler.ExpvarHandler)
 	}
 
-	r.NotFound = serveIndexHandler
+	r.NotFound = autheliaMiddleware(serveIndexHandler)
 
 	handler := middlewares.LogRequestMiddleware(r.Handler)
 	if configuration.Server.Path != "" {
-		handler = middlewares.StripPathMiddleware(handler)
+		handler = middlewares.StripPathMiddleware(configuration.Server.Path, handler)
 	}
 
 	if providers.OpenIDConnect.Fosite != nil {
@@ -149,8 +165,8 @@ func registerRoutes(configuration schema.Configuration, providers middlewares.Pr
 	return handler
 }
 
-// StartServer start Authelia server with the given configuration and providers.
-func StartServer(configuration schema.Configuration, providers middlewares.Providers) {
+// Start Authelia's internal webserver with the given configuration and providers.
+func Start(configuration schema.Configuration, providers middlewares.Providers) {
 	logger := logging.Logger()
 
 	handler := registerRoutes(configuration, providers)
@@ -163,35 +179,35 @@ func StartServer(configuration schema.Configuration, providers middlewares.Provi
 		WriteBufferSize:       configuration.Server.WriteBufferSize,
 	}
 
-	addrPattern := net.JoinHostPort(configuration.Host, strconv.Itoa(configuration.Port))
+	addrPattern := net.JoinHostPort(configuration.Server.Host, strconv.Itoa(configuration.Server.Port))
 
 	listener, err := net.Listen("tcp", addrPattern)
 	if err != nil {
 		logger.Fatalf("Error initializing listener: %s", err)
 	}
 
-	// TODO(clems4ever): move that piece to a more related location, probably in the configuration package.
-	if configuration.AuthenticationBackend.File != nil && configuration.AuthenticationBackend.File.Password.Algorithm == "argon2id" && runtime.GOOS == "linux" {
-		f, err := ioutil.ReadFile("/sys/fs/cgroup/memory/memory.limit_in_bytes")
-		if err != nil {
-			logger.Warnf("Error reading hosts memory limit: %s", err)
-		} else {
-			m, _ := strconv.Atoi(strings.TrimSuffix(string(f), "\n"))
-			hostMem := float64(m) / 1024 / 1024 / 1024
-			argonMem := float64(configuration.AuthenticationBackend.File.Password.Memory) / 1024
-
-			if hostMem/argonMem <= 2 {
-				logger.Warnf("Authelia's password hashing memory parameter is set to: %gGB this is %g%% of the available memory: %gGB", argonMem, argonMem/hostMem*100, hostMem)
-				logger.Warn("Please read https://www.authelia.com/docs/configuration/authentication/file.html#memory and tune your deployment")
-			}
+	if configuration.Server.TLS.Certificate != "" && configuration.Server.TLS.Key != "" {
+		if err = writeHealthCheckEnv(configuration.Server.DisableHealthcheck, "https", configuration.Server.Host, configuration.Server.Path, configuration.Server.Port); err != nil {
+			logger.Fatalf("Could not configure healthcheck: %v", err)
 		}
-	}
 
-	if configuration.TLSCert != "" && configuration.TLSKey != "" {
-		logger.Infof("Authelia is listening for TLS connections on %s%s", addrPattern, configuration.Server.Path)
-		logger.Fatal(server.ServeTLS(listener, configuration.TLSCert, configuration.TLSKey))
+		if configuration.Server.Path == "" {
+			logger.Infof("Listening for TLS connections on '%s' path '/'", addrPattern)
+		} else {
+			logger.Infof("Listening for TLS connections on '%s' paths '/' and '%s'", addrPattern, configuration.Server.Path)
+		}
+
+		logger.Fatal(server.ServeTLS(listener, configuration.Server.TLS.Certificate, configuration.Server.TLS.Key))
 	} else {
-		logger.Infof("Authelia is listening for non-TLS connections on %s%s", addrPattern, configuration.Server.Path)
+		if err = writeHealthCheckEnv(configuration.Server.DisableHealthcheck, "http", configuration.Server.Host, configuration.Server.Path, configuration.Server.Port); err != nil {
+			logger.Fatalf("Could not configure healthcheck: %v", err)
+		}
+
+		if configuration.Server.Path == "" {
+			logger.Infof("Listening for non-TLS connections on '%s' path '/'", addrPattern)
+		} else {
+			logger.Infof("Listening for non-TLS connections on '%s' paths '/' and '%s'", addrPattern, configuration.Server.Path)
+		}
 		logger.Fatal(server.Serve(listener))
 	}
 }

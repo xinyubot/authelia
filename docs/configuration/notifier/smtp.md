@@ -16,11 +16,12 @@ It can be configured as described below.
 notifier:
   disable_startup_check: false
   smtp:
-    username: test
-    password: password
     host: 127.0.0.1
     port: 1025
-    sender: admin@example.com
+    timeout: 5s
+    username: test
+    password: password
+    sender: "Authelia <admin@example.com>"
     identifier: localhost
     subject: "[Authelia] {title}"
     startup_check_address: test@authelia.com
@@ -33,27 +34,6 @@ notifier:
 ```
 
 ## Options
-
-### username
-<div markdown="1">
-type: string
-{: .label .label-config .label-purple }
-required: no
-{: .label .label-config .label-green }
-</div>
-
-The username sent for authentication with the SMTP server. Paired with the password.
-
-### password
-<div markdown="1">
-type: string
-{: .label .label-config .label-purple } 
-required: no
-{: .label .label-config .label-green }
-</div>
-
-The password sent for authentication with the SMTP server. Paired with the username. Can also be defined using a
-[secret](../secrets.md) which is the recommended for containerized deployments.
 
 ### host
 <div markdown="1">
@@ -82,7 +62,29 @@ required: yes
 
 The port the SMTP service is listening on.
 
-### sender
+### timeout
+<div markdown="1">
+type: duration
+{: .label .label-config .label-purple } 
+default: 5s
+{: .label .label-config .label-blue }
+required: no
+{: .label .label-config .label-green }
+</div>
+
+The SMTP connection timeout.
+
+### username
+<div markdown="1">
+type: string
+{: .label .label-config .label-purple }
+required: no
+{: .label .label-config .label-green }
+</div>
+
+The username sent for authentication with the SMTP server. Paired with the password.
+
+### password
 <div markdown="1">
 type: string
 {: .label .label-config .label-purple } 
@@ -90,10 +92,26 @@ required: no
 {: .label .label-config .label-green }
 </div>
 
-The address sent in the FROM header for the email. Basically who the email appears to come from. It should be noted
-that some SMTP servers require the username provided to have access to send from the specific address listed here.
+The password sent for authentication with the SMTP server. Paired with the username. Can also be defined using a
+[secret](../secrets.md) which is the recommended for containerized deployments.
 
-### identifer
+### sender
+<div markdown="1">
+type: string
+{: .label .label-config .label-purple } 
+required: yes
+{: .label .label-config .label-red }
+</div>
+
+The sender is used to construct both the SMTP command `MAIL FROM` and to add the `FROM` header. This address must be
+in [RFC5322](https://datatracker.ietf.org/doc/html/rfc5322#section-3.4) format. This means it must one of two formats:
+- jsmith@domain.com
+- John Smith <jsmith@domain.com>
+
+The `MAIL FROM` command sent to SMTP servers will not include the name portion, this is only set in the `FROM` as per
+specifications.
+
+### identifier
 <div markdown="1">
 type: string
 {: .label .label-config .label-purple } 

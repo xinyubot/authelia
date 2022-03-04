@@ -1,19 +1,20 @@
 package middlewares
 
 import (
-	"github.com/golang-jwt/jwt"
 	"github.com/sirupsen/logrus"
 	"github.com/valyala/fasthttp"
 
-	"github.com/authelia/authelia/internal/authentication"
-	"github.com/authelia/authelia/internal/authorization"
-	"github.com/authelia/authelia/internal/configuration/schema"
-	"github.com/authelia/authelia/internal/notification"
-	"github.com/authelia/authelia/internal/oidc"
-	"github.com/authelia/authelia/internal/regulation"
-	"github.com/authelia/authelia/internal/session"
-	"github.com/authelia/authelia/internal/storage"
-	"github.com/authelia/authelia/internal/utils"
+	"github.com/authelia/authelia/v4/internal/authentication"
+	"github.com/authelia/authelia/v4/internal/authorization"
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/notification"
+	"github.com/authelia/authelia/v4/internal/ntp"
+	"github.com/authelia/authelia/v4/internal/oidc"
+	"github.com/authelia/authelia/v4/internal/regulation"
+	"github.com/authelia/authelia/v4/internal/session"
+	"github.com/authelia/authelia/v4/internal/storage"
+	"github.com/authelia/authelia/v4/internal/totp"
+	"github.com/authelia/authelia/v4/internal/utils"
 )
 
 // AutheliaCtx contains all server variables related to Authelia.
@@ -33,10 +34,11 @@ type Providers struct {
 	SessionProvider *session.Provider
 	Regulator       *regulation.Regulator
 	OpenIDConnect   oidc.OpenIDConnectProvider
-
+	NTP             *ntp.Provider
 	UserProvider    authentication.UserProvider
 	StorageProvider storage.Provider
 	Notifier        notification.Notifier
+	TOTP            totp.Provider
 }
 
 // RequestHandler represents an Authelia request handler.
@@ -77,17 +79,6 @@ type IdentityVerificationFinishArgs struct {
 
 	// The function for checking the user in the token is valid for the current action.
 	IsTokenUserValidFunc func(ctx *AutheliaCtx, username string) bool
-}
-
-// IdentityVerificationClaim custom claim for specifying the action claim.
-// The action can be to register a TOTP device, a U2F device or reset one's password.
-type IdentityVerificationClaim struct {
-	jwt.StandardClaims
-
-	// The action this token has been crafted for.
-	Action string `json:"action"`
-	// The user this token has been crafted for.
-	Username string `json:"username"`
 }
 
 // IdentityVerificationFinishBody type of the body received by the finish endpoint.

@@ -8,13 +8,15 @@ import (
 	"github.com/ory/fosite/storage"
 	"gopkg.in/square/go-jose.v2"
 
-	"github.com/authelia/authelia/internal/authorization"
-	"github.com/authelia/authelia/internal/configuration/schema"
-	"github.com/authelia/authelia/internal/logging"
+	"github.com/authelia/authelia/v4/internal/authorization"
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/logging"
 )
 
 // NewOpenIDConnectStore returns a new OpenIDConnectStore using the provided schema.OpenIDConnectConfiguration.
-func NewOpenIDConnectStore(configuration *schema.OpenIDConnectConfiguration) (store *OpenIDConnectStore, err error) {
+func NewOpenIDConnectStore(configuration *schema.OpenIDConnectConfiguration) (store *OpenIDConnectStore) {
+	logger := logging.Logger()
+
 	store = &OpenIDConnectStore{
 		memory: &storage.MemoryStore{
 			IDSessions:             map[string]fosite.Requester{},
@@ -32,12 +34,12 @@ func NewOpenIDConnectStore(configuration *schema.OpenIDConnectConfiguration) (st
 
 	for _, client := range configuration.Clients {
 		policy := authorization.PolicyToLevel(client.Policy)
-		logging.Logger().Debugf("registering client %s with policy %s (%v)", client.ID, client.Policy, policy)
+		logger.Debugf("Registering client %s with policy %s (%v)", client.ID, client.Policy, policy)
 
 		store.clients[client.ID] = NewClient(client)
 	}
 
-	return store, nil
+	return store
 }
 
 // GetClientPolicy retrieves the policy from the client with the matching provided id.
@@ -165,6 +167,11 @@ func (s *OpenIDConnectStore) Authenticate(ctx context.Context, name string, secr
 // RevokeRefreshToken decorates fosite's storage.MemoryStore RevokeRefreshToken method.
 func (s *OpenIDConnectStore) RevokeRefreshToken(ctx context.Context, requestID string) error {
 	return s.memory.RevokeRefreshToken(ctx, requestID)
+}
+
+// RevokeRefreshTokenMaybeGracePeriod decorates fosite's storage.MemoryStore RevokeRefreshTokenMaybeGracePeriod method.
+func (s OpenIDConnectStore) RevokeRefreshTokenMaybeGracePeriod(ctx context.Context, requestID string, signature string) error {
+	return s.memory.RevokeRefreshTokenMaybeGracePeriod(ctx, requestID, signature)
 }
 
 // RevokeAccessToken decorates fosite's storage.MemoryStore RevokeAccessToken method.

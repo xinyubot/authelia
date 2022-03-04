@@ -6,11 +6,12 @@ import { makeStyles, Typography, Button, IconButton, Link, CircularProgress, Tex
 import { red } from "@material-ui/core/colors";
 import classnames from "classnames";
 import QRCode from "qrcode.react";
-import { useHistory, useLocation } from "react-router";
+import { useTranslation } from "react-i18next";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import AppStoreBadges from "@components/AppStoreBadges";
 import { GoogleAuthenticator } from "@constants/constants";
-import { FirstFactorRoute } from "@constants/Routes";
+import { IndexRoute } from "@constants/Routes";
 import { useNotifications } from "@hooks/NotificationsContext";
 import LoginLayout from "@layouts/LoginLayout";
 import { completeTOTPRegistrationProcess } from "@services/RegisterDevice";
@@ -18,7 +19,7 @@ import { extractIdentityToken } from "@utils/IdentityToken";
 
 const RegisterOneTimePassword = function () {
     const style = useStyles();
-    const history = useHistory();
+    const navigate = useNavigate();
     const location = useLocation();
     // The secret retrieved from the API is all is ok.
     const [secretURL, setSecretURL] = useState("empty");
@@ -26,13 +27,14 @@ const RegisterOneTimePassword = function () {
     const { createSuccessNotification, createErrorNotification } = useNotifications();
     const [hasErrored, setHasErrored] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
+    const { t: translate } = useTranslation("Portal");
 
     // Get the token from the query param to give it back to the API when requesting
     // the secret for OTP.
     const processToken = extractIdentityToken(location.search);
 
     const handleDoneClick = () => {
-        history.push(FirstFactorRoute);
+        navigate(IndexRoute);
     };
 
     const completeRegistrationProcess = useCallback(async () => {
@@ -47,15 +49,26 @@ const RegisterOneTimePassword = function () {
             setSecretBase32(secret.base32_secret);
         } catch (err) {
             console.error(err);
-            createErrorNotification("Failed to generate the code to register your device", 10000);
+            if ((err as Error).message.includes("Request failed with status code 403")) {
+                createErrorNotification(
+                    translate(
+                        "You must open the link from the same device and browser that initiated the registration process",
+                    ),
+                );
+            } else {
+                createErrorNotification(
+                    translate("Failed to register device, the provided link is expired or has already been used"),
+                );
+            }
             setHasErrored(true);
         }
         setIsLoading(false);
-    }, [processToken, createErrorNotification]);
+    }, [processToken, createErrorNotification, translate]);
 
     useEffect(() => {
         completeRegistrationProcess();
     }, [completeRegistrationProcess]);
+
     function SecretButton(text: string | undefined, action: string, icon: IconDefinition) {
         return (
             <IconButton
@@ -73,10 +86,12 @@ const RegisterOneTimePassword = function () {
     const qrcodeFuzzyStyle = isLoading || hasErrored ? style.fuzzy : undefined;
 
     return (
-        <LoginLayout title="Scan QR Code">
+        <LoginLayout title={translate("Scan QR Code")}>
             <div className={style.root}>
                 <div className={style.googleAuthenticator}>
-                    <Typography className={style.googleAuthenticatorText}>Need Google Authenticator?</Typography>
+                    <Typography className={style.googleAuthenticatorText}>
+                        {translate("Need Google Authenticator?")}
+                    </Typography>
                     <AppStoreBadges
                         iconSize={128}
                         targetBlank
@@ -96,7 +111,7 @@ const RegisterOneTimePassword = function () {
                     {secretURL !== "empty" ? (
                         <TextField
                             id="secret-url"
-                            label="Secret"
+                            label={translate("Secret")}
                             className={style.secret}
                             value={secretURL}
                             InputProps={{
@@ -104,8 +119,12 @@ const RegisterOneTimePassword = function () {
                             }}
                         />
                     ) : null}
-                    {secretBase32 ? SecretButton(secretBase32, "OTP Secret copied to clipboard.", faKey) : null}
-                    {secretURL !== "empty" ? SecretButton(secretURL, "OTP URL copied to clipboard.", faCopy) : null}
+                    {secretBase32
+                        ? SecretButton(secretBase32, translate("OTP Secret copied to clipboard"), faKey)
+                        : null}
+                    {secretURL !== "empty"
+                        ? SecretButton(secretURL, translate("OTP URL copied to clipboard"), faCopy)
+                        : null}
                 </div>
                 <Button
                     variant="contained"
@@ -114,7 +133,7 @@ const RegisterOneTimePassword = function () {
                     onClick={handleDoneClick}
                     disabled={isLoading}
                 >
-                    Done
+                    {translate("Done")}
                 </Button>
             </div>
         </LoginLayout>

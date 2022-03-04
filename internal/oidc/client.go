@@ -3,10 +3,10 @@ package oidc
 import (
 	"github.com/ory/fosite"
 
-	"github.com/authelia/authelia/internal/authentication"
-	"github.com/authelia/authelia/internal/authorization"
-	"github.com/authelia/authelia/internal/configuration/schema"
-	"github.com/authelia/authelia/internal/session"
+	"github.com/authelia/authelia/v4/internal/authentication"
+	"github.com/authelia/authelia/v4/internal/authorization"
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/session"
 )
 
 // NewClient creates a new InternalClient.
@@ -54,8 +54,8 @@ func (c InternalClient) GetConsentResponseBody(session *session.OIDCWorkflowSess
 	}
 
 	if session != nil {
-		body.Scopes = scopeNamesToScopes(session.RequestedScopes)
-		body.Audience = audienceNamesToAudience(session.RequestedAudience)
+		body.Scopes = session.RequestedScopes
+		body.Audience = session.RequestedAudience
 	}
 
 	return body

@@ -11,12 +11,14 @@ export const FirstFactorPath = basePath + "/api/firstfactor";
 export const InitiateTOTPRegistrationPath = basePath + "/api/secondfactor/totp/identity/start";
 export const CompleteTOTPRegistrationPath = basePath + "/api/secondfactor/totp/identity/finish";
 
-export const InitiateU2FRegistrationPath = basePath + "/api/secondfactor/u2f/identity/start";
-export const CompleteU2FRegistrationStep1Path = basePath + "/api/secondfactor/u2f/identity/finish";
-export const CompleteU2FRegistrationStep2Path = basePath + "/api/secondfactor/u2f/register";
+export const WebauthnIdentityStartPath = basePath + "/api/secondfactor/webauthn/identity/start";
+export const WebauthnIdentityFinishPath = basePath + "/api/secondfactor/webauthn/identity/finish";
+export const WebauthnAttestationPath = basePath + "/api/secondfactor/webauthn/attestation";
 
-export const InitiateU2FSignInPath = basePath + "/api/secondfactor/u2f/sign_request";
-export const CompleteU2FSignInPath = basePath + "/api/secondfactor/u2f/sign";
+export const WebauthnAssertionPath = basePath + "/api/secondfactor/webauthn/assertion";
+
+export const InitiateDuoDeviceSelectionPath = basePath + "/api/secondfactor/duo_devices";
+export const CompleteDuoDeviceSelectionPath = basePath + "/api/secondfactor/duo_device";
 
 export const CompletePushNotificationSignInPath = basePath + "/api/secondfactor/duo";
 export const CompleteTOTPSignInPath = basePath + "/api/secondfactor/totp";
@@ -25,11 +27,13 @@ export const InitiateResetPasswordPath = basePath + "/api/reset-password/identit
 export const CompleteResetPasswordPath = basePath + "/api/reset-password/identity/finish";
 // Do the password reset during completion.
 export const ResetPasswordPath = basePath + "/api/reset-password";
+export const ChecksSafeRedirectionPath = basePath + "/api/checks/safe-redirection";
 
 export const LogoutPath = basePath + "/api/logout";
 export const StatePath = basePath + "/api/state";
 export const UserInfoPath = basePath + "/api/user/info";
 export const UserInfo2FAMethodPath = basePath + "/api/user/info/2fa_method";
+export const UserInfoTOTPConfigurationPath = basePath + "/api/user/info/totp";
 
 export const ConfigurationPath = basePath + "/api/configuration";
 
@@ -43,6 +47,12 @@ export interface Response<T> {
     data: T;
 }
 
+export interface OptionalDataResponse<T> {
+    status: "OK";
+    data?: T;
+}
+
+export type OptionalDataServiceResponse<T> = OptionalDataResponse<T> | ErrorResponse;
 export type ServiceResponse<T> = Response<T> | ErrorResponse;
 
 function toErrorResponse<T>(resp: AxiosResponse<ServiceResponse<T>>): ErrorResponse | undefined {

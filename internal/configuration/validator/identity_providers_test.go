@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/authelia/authelia/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
 )
 
 func TestShouldRaiseErrorWhenInvalidOIDCServerConfiguration(t *testing.T) {
@@ -25,8 +25,26 @@ func TestShouldRaiseErrorWhenInvalidOIDCServerConfiguration(t *testing.T) {
 
 	require.Len(t, validator.Errors(), 2)
 
-	assert.EqualError(t, validator.Errors()[0], "OIDC Server issuer private key must be provided")
-	assert.EqualError(t, validator.Errors()[1], "OIDC Server has no clients defined")
+	assert.EqualError(t, validator.Errors()[0], errFmtOIDCNoPrivateKey)
+	assert.EqualError(t, validator.Errors()[1], errFmtOIDCNoClientsConfigured)
+}
+
+func TestShouldRaiseErrorWhenOIDCPKCEEnforceValueInvalid(t *testing.T) {
+	validator := schema.NewStructValidator()
+	config := &schema.IdentityProvidersConfiguration{
+		OIDC: &schema.OpenIDConnectConfiguration{
+			HMACSecret:       "rLABDrx87et5KvRHVUgTm3pezWWd8LMN",
+			IssuerPrivateKey: "key-material",
+			EnforcePKCE:      "invalid",
+		},
+	}
+
+	ValidateIdentityProviders(config, validator)
+
+	require.Len(t, validator.Errors(), 2)
+
+	assert.EqualError(t, validator.Errors()[0], "identity_providers: oidc: option 'enforce_pkce' must be 'never', 'public_clients_only' or 'always', but it is configured as 'invalid'")
+	assert.EqualError(t, validator.Errors()[1], errFmtOIDCNoClientsConfigured)
 }
 
 func TestShouldRaiseErrorWhenOIDCServerIssuerPrivateKeyPathInvalid(t *testing.T) {
@@ -42,73 +60,112 @@ func TestShouldRaiseErrorWhenOIDCServerIssuerPrivateKeyPathInvalid(t *testing.T)
 
 	require.Len(t, validator.Errors(), 1)
 
-	assert.EqualError(t, validator.Errors()[0], "OIDC Server has no clients defined")
+	assert.EqualError(t, validator.Errors()[0], errFmtOIDCNoClientsConfigured)
 }
 
 func TestShouldRaiseErrorWhenOIDCServerClientBadValues(t *testing.T) {
-	validator := schema.NewStructValidator()
-	config := &schema.IdentityProvidersConfiguration{
-		OIDC: &schema.OpenIDConnectConfiguration{
-			HMACSecret:       "rLABDrx87et5KvRHVUgTm3pezWWd8LMN",
-			IssuerPrivateKey: "key-material",
+	testCases := []struct {
+		Name    string
+		Clients []schema.OpenIDConnectClientConfiguration
+		Errors  []error
+	}{
+		{
+			Name: "empty",
 			Clients: []schema.OpenIDConnectClientConfiguration{
 				{
-					ID:     "",
-					Secret: "",
-					Policy: "",
-					RedirectURIs: []string{
-						"tcp://google.com",
-					},
+					ID:           "",
+					Secret:       "",
+					Policy:       "",
+					RedirectURIs: []string{},
 				},
+			},
+			Errors: []error{
+				fmt.Errorf(errFmtOIDCClientInvalidSecret, ""),
+				errors.New(errFmtOIDCClientsWithEmptyID),
+			},
+		},
+		{
+			Name: "client-1",
+			Clients: []schema.OpenIDConnectClientConfiguration{
 				{
-					ID:     "a-client",
+					ID:     "client-1",
 					Secret: "a-secret",
 					Policy: "a-policy",
 					RedirectURIs: []string{
 						"https://google.com",
 					},
 				},
+			},
+			Errors: []error{fmt.Errorf(errFmtOIDCClientInvalidPolicy, "client-1", "a-policy")},
+		},
+		{
+			Name: "client-duplicate",
+			Clients: []schema.OpenIDConnectClientConfiguration{
 				{
-					ID:     "a-client",
-					Secret: "a-secret",
-					Policy: "a-policy",
-					RedirectURIs: []string{
-						"https://google.com",
-					},
+					ID:           "client-x",
+					Secret:       "a-secret",
+					Policy:       policyTwoFactor,
+					RedirectURIs: []string{},
 				},
+				{
+					ID:           "client-x",
+					Secret:       "a-secret",
+					Policy:       policyTwoFactor,
+					RedirectURIs: []string{},
+				},
+			},
+			Errors: []error{errors.New(errFmtOIDCClientsDuplicateID)},
+		},
+		{
+			Name: "client-check-uri-parse",
+			Clients: []schema.OpenIDConnectClientConfiguration{
 				{
 					ID:     "client-check-uri-parse",
 					Secret: "a-secret",
-					Policy: twoFactorPolicy,
+					Policy: policyTwoFactor,
 					RedirectURIs: []string{
 						"http://abc@%two",
 					},
 				},
+			},
+			Errors: []error{
+				fmt.Errorf(errFmtOIDCClientRedirectURICantBeParsed, "client-check-uri-parse", "http://abc@%two", errors.New("parse \"http://abc@%two\": invalid URL escape \"%tw\"")),
+			},
+		},
+		{
+			Name: "client-check-uri-abs",
+			Clients: []schema.OpenIDConnectClientConfiguration{
 				{
 					ID:     "client-check-uri-abs",
 					Secret: "a-secret",
-					Policy: twoFactorPolicy,
+					Policy: policyTwoFactor,
 					RedirectURIs: []string{
 						"google.com",
 					},
 				},
 			},
+			Errors: []error{
+				fmt.Errorf(errFmtOIDCClientRedirectURIAbsolute, "client-check-uri-abs", "google.com"),
+			},
 		},
 	}
 
-	ValidateIdentityProviders(config, validator)
+	for _, tc := range testCases {
+		t.Run(tc.Name, func(t *testing.T) {
+			validator := schema.NewStructValidator()
+			config := &schema.IdentityProvidersConfiguration{
+				OIDC: &schema.OpenIDConnectConfiguration{
+					HMACSecret:       "rLABDrx87et5KvRHVUgTm3pezWWd8LMN",
+					IssuerPrivateKey: "key-material",
+					Clients:          tc.Clients,
+				},
+			}
 
-	require.Len(t, validator.Errors(), 8)
+			ValidateIdentityProviders(config, validator)
 
-	assert.Equal(t, schema.DefaultOpenIDConnectClientConfiguration.Policy, config.OIDC.Clients[0].Policy)
-	assert.EqualError(t, validator.Errors()[0], fmt.Sprintf(errFmtOIDCServerClientInvalidSecret, ""))
-	assert.EqualError(t, validator.Errors()[1], fmt.Sprintf(errFmtOIDCServerClientRedirectURI, "", "tcp://google.com", "tcp"))
-	assert.EqualError(t, validator.Errors()[2], fmt.Sprintf(errFmtOIDCServerClientInvalidPolicy, "a-client", "a-policy"))
-	assert.EqualError(t, validator.Errors()[3], fmt.Sprintf(errFmtOIDCServerClientInvalidPolicy, "a-client", "a-policy"))
-	assert.EqualError(t, validator.Errors()[4], fmt.Sprintf(errFmtOIDCServerClientRedirectURICantBeParsed, "client-check-uri-parse", "http://abc@%two", errors.New("parse \"http://abc@%two\": invalid URL escape \"%tw\"")))
-	assert.EqualError(t, validator.Errors()[5], fmt.Sprintf(errFmtOIDCClientRedirectURIAbsolute, "client-check-uri-abs", "google.com"))
-	assert.EqualError(t, validator.Errors()[6], "OIDC Server has one or more clients with an empty ID")
-	assert.EqualError(t, validator.Errors()[7], "OIDC Server has clients with duplicate ID's")
+			assert.ElementsMatch(t, validator.Errors(), tc.Errors)
+		})
+	}
 }
 
 func TestShouldRaiseErrorWhenOIDCClientConfiguredWithBadScopes(t *testing.T) {
@@ -134,8 +191,7 @@ func TestShouldRaiseErrorWhenOIDCClientConfiguredWithBadScopes(t *testing.T) {
 	ValidateIdentityProviders(config, validator)
 
 	require.Len(t, validator.Errors(), 1)
-	assert.EqualError(t, validator.Errors()[0], "OIDC client with ID 'good_id' has an invalid scope "+
-		"'bad_scope', must be one of: 'openid', 'email', 'profile', 'groups', 'offline_access'")
+	assert.EqualError(t, validator.Errors()[0], "identity_providers: oidc: client 'good_id': option 'scopes' must only have the values 'openid', 'email', 'profile', 'groups', 'offline_access' but one option is configured as 'bad_scope'")
 }
 
 func TestShouldRaiseErrorWhenOIDCClientConfiguredWithBadGrantTypes(t *testing.T) {
@@ -161,9 +217,7 @@ func TestShouldRaiseErrorWhenOIDCClientConfiguredWithBadGrantTypes(t *testing.T)
 	ValidateIdentityProviders(config, validator)
 
 	require.Len(t, validator.Errors(), 1)
-	assert.EqualError(t, validator.Errors()[0], "OIDC client with ID 'good_id' has an invalid grant type "+
-		"'bad_grant_type', must be one of: 'implicit', 'refresh_token', 'authorization_code', "+
-		"'password', 'client_credentials'")
+	assert.EqualError(t, validator.Errors()[0], "identity_providers: oidc: client 'good_id': option 'grant_types' must only have the values 'implicit', 'refresh_token', 'authorization_code', 'password', 'client_credentials' but one option is configured as 'bad_grant_type'")
 }
 
 func TestShouldRaiseErrorWhenOIDCClientConfiguredWithBadResponseModes(t *testing.T) {
@@ -189,8 +243,7 @@ func TestShouldRaiseErrorWhenOIDCClientConfiguredWithBadResponseModes(t *testing
 	ValidateIdentityProviders(config, validator)
 
 	require.Len(t, validator.Errors(), 1)
-	assert.EqualError(t, validator.Errors()[0], "OIDC client with ID 'good_id' has an invalid response mode "+
-		"'bad_responsemode', must be one of: 'form_post', 'query', 'fragment'")
+	assert.EqualError(t, validator.Errors()[0], "identity_providers: oidc: client 'good_id': option 'response_modes' must only have the values 'form_post', 'query', 'fragment' but one option is configured as 'bad_responsemode'")
 }
 
 func TestShouldRaiseErrorWhenOIDCClientConfiguredWithBadUserinfoAlg(t *testing.T) {
@@ -216,8 +269,7 @@ func TestShouldRaiseErrorWhenOIDCClientConfiguredWithBadUserinfoAlg(t *testing.T
 	ValidateIdentityProviders(config, validator)
 
 	require.Len(t, validator.Errors(), 1)
-	assert.EqualError(t, validator.Errors()[0], "OIDC client with ID 'good_id' has an invalid userinfo "+
-		"signing algorithm 'rs256', must be one of: 'none, RS256'")
+	assert.EqualError(t, validator.Errors()[0], "identity_providers: oidc: client 'good_id': option 'userinfo_signing_algorithm' must be one of 'none, RS256' but it is configured as 'rs256'")
 }
 
 func TestValidateIdentityProvidersShouldRaiseWarningOnSecurityIssue(t *testing.T) {
@@ -245,7 +297,7 @@ func TestValidateIdentityProvidersShouldRaiseWarningOnSecurityIssue(t *testing.T
 	assert.Len(t, validator.Errors(), 0)
 	require.Len(t, validator.Warnings(), 1)
 
-	assert.EqualError(t, validator.Warnings()[0], "SECURITY ISSUE: OIDC minimum parameter entropy is configured to an unsafe value, it should be above 8 but it's configured to 1.")
+	assert.EqualError(t, validator.Warnings()[0], "openid connect provider: SECURITY ISSUE - minimum parameter entropy is configured to an unsafe value, it should be above 8 but it's configured to 1")
 }
 
 func TestValidateIdentityProvidersShouldRaiseErrorsOnInvalidClientTypes(t *testing.T) {
@@ -345,7 +397,7 @@ func TestValidateIdentityProvidersShouldSetDefaultValues(t *testing.T) {
 					ID:                       "b-client",
 					Description:              "Normal Description",
 					Secret:                   "b-client-secret",
-					Policy:                   oneFactorPolicy,
+					Policy:                   policyOneFactor,
 					UserinfoSigningAlgorithm: "RS256",
 					RedirectURIs: []string{
 						"https://google.com",
@@ -375,11 +427,11 @@ func TestValidateIdentityProvidersShouldSetDefaultValues(t *testing.T) {
 	assert.Len(t, validator.Errors(), 0)
 
 	// Assert Clients[0] Policy is set to the default, and the default doesn't override Clients[1]'s Policy.
-	assert.Equal(t, config.OIDC.Clients[0].Policy, twoFactorPolicy)
-	assert.Equal(t, config.OIDC.Clients[1].Policy, oneFactorPolicy)
+	assert.Equal(t, policyTwoFactor, config.OIDC.Clients[0].Policy)
+	assert.Equal(t, policyOneFactor, config.OIDC.Clients[1].Policy)
 
-	assert.Equal(t, config.OIDC.Clients[0].UserinfoSigningAlgorithm, "none")
-	assert.Equal(t, config.OIDC.Clients[1].UserinfoSigningAlgorithm, "RS256")
+	assert.Equal(t, "none", config.OIDC.Clients[0].UserinfoSigningAlgorithm)
+	assert.Equal(t, "RS256", config.OIDC.Clients[1].UserinfoSigningAlgorithm)
 
 	// Assert Clients[0] Description is set to the Clients[0] ID, and Clients[1]'s Description is not overridden.
 	assert.Equal(t, config.OIDC.Clients[0].ID, config.OIDC.Clients[0].Description)
@@ -431,4 +483,40 @@ func TestValidateIdentityProvidersShouldSetDefaultValues(t *testing.T) {
 	assert.Equal(t, time.Minute, config.OIDC.AuthorizeCodeLifespan)
 	assert.Equal(t, time.Hour, config.OIDC.IDTokenLifespan)
 	assert.Equal(t, time.Minute*90, config.OIDC.RefreshTokenLifespan)
+}
+
+// All valid schemes are supported as defined in https://datatracker.ietf.org/doc/html/rfc8252#section-7.1
+func TestValidateOIDCClientRedirectURIsSupportingPrivateUseURISchemes(t *testing.T) {
+	conf := schema.OpenIDConnectClientConfiguration{
+		ID: "owncloud",
+		RedirectURIs: []string{
+			"https://www.mywebsite.com",
+			"http://www.mywebsite.com",
+			"oc://ios.owncloud.com",
+			// example given in the RFC https://datatracker.ietf.org/doc/html/rfc8252#section-7.1
+			"com.example.app:/oauth2redirect/example-provider",
+		},
+	}
+
+	t.Run("public", func(t *testing.T) {
+		validator := schema.NewStructValidator()
+		conf.Public = true
+		validateOIDCClientRedirectURIs(conf, validator)
+
+		assert.Len(t, validator.Warnings(), 0)
+		assert.Len(t, validator.Errors(), 0)
+	})
+
+	t.Run("not public", func(t *testing.T) {
+		validator := schema.NewStructValidator()
+		conf.Public = false
+		validateOIDCClientRedirectURIs(conf, validator)
+
+		assert.Len(t, validator.Warnings(), 0)
+		assert.Len(t, validator.Errors(), 2)
+		assert.ElementsMatch(t, validator.Errors(), []error{
+			errors.New("identity_providers: oidc: client 'owncloud': option 'redirect_uris' has an invalid value: redirect uri 'oc://ios.owncloud.com' must have a scheme of 'http' or 'https' but 'oc' is configured"),
+			errors.New("identity_providers: oidc: client 'owncloud': option 'redirect_uris' has an invalid value: redirect uri 'com.example.app:/oauth2redirect/example-provider' must have a scheme of 'http' or 'https' but 'com.example.app' is configured"),
+		})
+	})
 }

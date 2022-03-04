@@ -10,27 +10,27 @@ import (
 )
 
 type RedirectionCheckScenario struct {
-	*SeleniumSuite
+	*RodSuite
 }
 
 func NewRedirectionCheckScenario() *RedirectionCheckScenario {
 	return &RedirectionCheckScenario{
-		SeleniumSuite: new(SeleniumSuite),
+		RodSuite: new(RodSuite),
 	}
 }
 
 func (s *RedirectionCheckScenario) SetupSuite() {
-	wds, err := StartWebDriver()
+	browser, err := StartRod()
 
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	s.WebDriverSession = wds
+	s.RodSession = browser
 }
 
 func (s *RedirectionCheckScenario) TearDownSuite() {
-	err := s.WebDriverSession.Stop()
+	err := s.RodSession.Stop()
 
 	if err != nil {
 		log.Fatal(err)
@@ -38,64 +38,71 @@ func (s *RedirectionCheckScenario) TearDownSuite() {
 }
 
 func (s *RedirectionCheckScenario) SetupTest() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	s.Page = s.doCreateTab(s.T(), HomeBaseURL)
+	s.verifyIsHome(s.T(), s.Page)
+}
 
-	s.doLogout(ctx, s.T())
-	s.doVisit(s.T(), HomeBaseURL)
-	s.verifyIsHome(ctx, s.T())
+func (s *RedirectionCheckScenario) TearDownTest() {
+	s.collectCoverage(s.Page)
+	s.MustClose()
 }
 
 var redirectionAuthorizations = map[string]bool{
-	// external website
+	// external website.
 	"https://www.google.fr": false,
-	// Not the right domain
+	// Not the right domain.
 	"https://public.example.com.a:8080/secret.html": false,
-	// Not https
+	// Not https.
 	"http://secure.example.com:8080/secret.html": false,
-	// Domain handled by Authelia
+	// Domain handled by Authelia.
 	"https://secure.example.com:8080/secret.html": true,
 }
 
 func (s *RedirectionCheckScenario) TestShouldRedirectOnLoginOnlyWhenDomainIsSafe() {
 	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
-	defer cancel()
+	defer func() {
+		cancel()
+		s.collectScreenshot(ctx.Err(), s.Page)
+	}()
 
-	secret := s.doRegisterThenLogout(ctx, s.T(), "john", "password")
+	secret := s.doRegisterThenLogout(s.T(), s.Context(ctx), "john", "password")
 
 	for url, redirected := range redirectionAuthorizations {
 		s.T().Run(url, func(t *testing.T) {
-			s.doLoginTwoFactor(ctx, t, "john", "password", false, secret, url)
+			s.doLoginTwoFactor(t, s.Context(ctx), "john", "password", false, secret, url)
 
 			if redirected {
-				s.verifySecretAuthorized(ctx, t)
+				s.verifySecretAuthorized(t, s.Context(ctx))
 			} else {
-				s.verifyIsAuthenticatedPage(ctx, t)
+				s.verifyIsAuthenticatedPage(t, s.Context(ctx))
 			}
 
-			s.doLogout(ctx, t)
+			s.doLogout(t, s.Context(ctx))
 		})
 	}
 }
 
 var logoutRedirectionURLs = map[string]bool{
-	// external website
+	// external website.
 	"https://www.google.fr": false,
-	// Not the right domain
+	// Not the right domain.
 	"https://public.example-not-right.com:8080/index.html": false,
-	// Not https
+	// Not https.
 	"http://public.example.com:8080/index.html": false,
-	// Domain handled by Authelia
+	// Domain handled by Authelia.
 	"https://public.example.com:8080/index.html": true,
 }
 
 func (s *RedirectionCheckScenario) TestShouldRedirectOnLogoutOnlyWhenDomainIsSafe() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	defer func() {
+		cancel()
+		s.collectScreenshot(ctx.Err(), s.Page)
+	}()
 
 	for url, success := range logoutRedirectionURLs {
 		s.T().Run(url, func(t *testing.T) {
-			s.doLogoutWithRedirect(ctx, t, url, !success)
+			s.doLogoutWithRedirect(t, s.Context(ctx), url, !success)
 		})
 	}
 }

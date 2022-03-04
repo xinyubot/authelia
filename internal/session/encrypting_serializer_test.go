@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	"github.com/fasthttp/session/v2"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +28,7 @@ func TestShouldEncryptAndDecrypt(t *testing.T) {
 	assert.Equal(t, "value", decodedPayload.Get("key"))
 }
 
-func TestShouldSupportUnencryptedSessionForBackwardCompatibility(t *testing.T) {
+func TestShouldNotSupportUnencryptedSessionForBackwardCompatibility(t *testing.T) {
 	payload := session.Dict{}
 	payload.Set("key", "value")
 
@@ -40,7 +39,5 @@ func TestShouldSupportUnencryptedSessionForBackwardCompatibility(t *testing.T) {
 
 	decodedPayload := session.Dict{}
 	err = serializer.Decode(&decodedPayload, dst)
-	require.NoError(t, err)
-
-	assert.Equal(t, "value", decodedPayload.Get("key"))
+	assert.EqualError(t, err, "unable to decrypt session: cipher: message authentication failed")
 }

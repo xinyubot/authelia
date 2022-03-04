@@ -2,12 +2,11 @@ package notification
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/authelia/authelia/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
 )
 
 // FileNotifier a notifier to send emails to SMTP servers.
@@ -22,39 +21,29 @@ func NewFileNotifier(configuration schema.FileSystemNotifierConfiguration) *File
 	}
 }
 
-// StartupCheck checks the file provider can write to the specified file.
-func (n *FileNotifier) StartupCheck() (bool, error) {
+// StartupCheck implements the startup check provider interface.
+func (n *FileNotifier) StartupCheck() (err error) {
 	dir := filepath.Dir(n.path)
 	if _, err := os.Stat(dir); err != nil {
 		if os.IsNotExist(err) {
 			if err = os.MkdirAll(dir, fileNotifierMode); err != nil {
-				return false, err
+				return err
 			}
 		} else {
-			return false, err
+			return err
 		}
 	} else if _, err = os.Stat(n.path); err != nil {
 		if !os.IsNotExist(err) {
-			return false, err
+			return err
 		}
 	}
 
-	if err := ioutil.WriteFile(n.path, []byte(""), fileNotifierMode); err != nil {
-		return false, err
-	}
-
-	return true, nil
+	return os.WriteFile(n.path, []byte(""), fileNotifierMode)
 }
 
 // Send send a identity verification link to a user.
 func (n *FileNotifier) Send(recipient, subject, body, _ string) error {
 	content := fmt.Sprintf("Date: %s\nRecipient: %s\nSubject: %s\nBody: %s", time.Now(), recipient, subject, body)
 
-	err := ioutil.WriteFile(n.path, []byte(content), fileNotifierMode)
-
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return os.WriteFile(n.path, []byte(content), fileNotifierMode)
 }

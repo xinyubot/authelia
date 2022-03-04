@@ -5,105 +5,211 @@ import (
 
 	"github.com/stretchr/testify/suite"
 
-	"github.com/authelia/authelia/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
 )
 
 type StorageSuite struct {
 	suite.Suite
-	configuration schema.StorageConfiguration
-	validator     *schema.StructValidator
+	config    schema.StorageConfiguration
+	validator *schema.StructValidator
 }
 
 func (suite *StorageSuite) SetupTest() {
 	suite.validator = schema.NewStructValidator()
-	suite.configuration.Local = &schema.LocalStorageConfiguration{
-		Path: "/this/is/a/path",
-	}
+	suite.config.EncryptionKey = testEncryptionKey
+	suite.config.Local = nil
+	suite.config.PostgreSQL = nil
+	suite.config.MySQL = nil
 }
 
 func (suite *StorageSuite) TestShouldValidateOneStorageIsConfigured() {
-	suite.configuration.Local = nil
+	suite.config.Local = nil
+	suite.config.PostgreSQL = nil
+	suite.config.MySQL = nil
 
-	ValidateStorage(suite.configuration, suite.validator)
+	ValidateStorage(suite.config, suite.validator)
 
-	suite.Assert().False(suite.validator.HasWarnings())
+	suite.Require().Len(suite.validator.Warnings(), 0)
 	suite.Require().Len(suite.validator.Errors(), 1)
-	suite.Assert().EqualError(suite.validator.Errors()[0], "A storage configuration must be provided. It could be 'local', 'mysql' or 'postgres'")
+	suite.Assert().EqualError(suite.validator.Errors()[0], "storage: configuration for a 'local', 'mysql' or 'postgres' database must be provided")
 }
 
 func (suite *StorageSuite) TestShouldValidateLocalPathIsProvided() {
-	suite.configuration.Local.Path = ""
+	suite.config.Local = &schema.LocalStorageConfiguration{
+		Path: "",
+	}
 
-	ValidateStorage(suite.configuration, suite.validator)
+	ValidateStorage(suite.config, suite.validator)
 
-	suite.Assert().False(suite.validator.HasWarnings())
+	suite.Require().Len(suite.validator.Warnings(), 0)
 	suite.Require().Len(suite.validator.Errors(), 1)
 
-	suite.Assert().EqualError(suite.validator.Errors()[0], "A file path must be provided with key 'path'")
+	suite.Assert().EqualError(suite.validator.Errors()[0], "storage: local: option 'path' is required")
 
 	suite.validator.Clear()
-	suite.configuration.Local.Path = "/myapth"
+	suite.config.Local.Path = "/myapth"
 
-	ValidateStorage(suite.configuration, suite.validator)
+	ValidateStorage(suite.config, suite.validator)
 
-	suite.Assert().False(suite.validator.HasWarnings())
-	suite.Assert().False(suite.validator.HasErrors())
+	suite.Require().Len(suite.validator.Warnings(), 0)
+	suite.Require().Len(suite.validator.Errors(), 0)
 }
 
-func (suite *StorageSuite) TestShouldValidateSQLUsernamePasswordAndDatabaseAreProvided() {
-	suite.configuration.MySQL = &schema.MySQLStorageConfiguration{}
-	ValidateStorage(suite.configuration, suite.validator)
+func (suite *StorageSuite) TestShouldValidateMySQLHostUsernamePasswordAndDatabaseAreProvided() {
+	suite.config.MySQL = &schema.MySQLStorageConfiguration{}
+	ValidateStorage(suite.config, suite.validator)
 
-	suite.Require().Len(suite.validator.Errors(), 2)
-	suite.Assert().EqualError(suite.validator.Errors()[0], "the SQL username and password must be provided")
-	suite.Assert().EqualError(suite.validator.Errors()[1], "the SQL database must be provided")
+	suite.Require().Len(suite.validator.Errors(), 3)
+	suite.Assert().EqualError(suite.validator.Errors()[0], "storage: mysql: option 'host' is required")
+	suite.Assert().EqualError(suite.validator.Errors()[1], "storage: mysql: option 'username' and 'password' are required")
+	suite.Assert().EqualError(suite.validator.Errors()[2], "storage: mysql: option 'database' is required")
 
 	suite.validator.Clear()
-	suite.configuration.MySQL = &schema.MySQLStorageConfiguration{
+	suite.config.MySQL = &schema.MySQLStorageConfiguration{
 		SQLStorageConfiguration: schema.SQLStorageConfiguration{
+			Host:     "localhost",
 			Username: "myuser",
 			Password: "pass",
 			Database: "database",
 		},
 	}
-	ValidateStorage(suite.configuration, suite.validator)
+	ValidateStorage(suite.config, suite.validator)
 
-	suite.Assert().False(suite.validator.HasWarnings())
-	suite.Assert().False(suite.validator.HasErrors())
+	suite.Require().Len(suite.validator.Warnings(), 0)
+	suite.Require().Len(suite.validator.Errors(), 0)
 }
 
-func (suite *StorageSuite) TestShouldValidatePostgresSSLModeIsDisableByDefault() {
-	suite.configuration.PostgreSQL = &schema.PostgreSQLStorageConfiguration{
+func (suite *StorageSuite) TestShouldValidatePostgreSQLHostUsernamePasswordAndDatabaseAreProvided() {
+	suite.config.PostgreSQL = &schema.PostgreSQLStorageConfiguration{}
+	suite.config.MySQL = nil
+	ValidateStorage(suite.config, suite.validator)
+
+	suite.Require().Len(suite.validator.Errors(), 3)
+	suite.Assert().EqualError(suite.validator.Errors()[0], "storage: postgres: option 'host' is required")
+	suite.Assert().EqualError(suite.validator.Errors()[1], "storage: postgres: option 'username' and 'password' are required")
+	suite.Assert().EqualError(suite.validator.Errors()[2], "storage: postgres: option 'database' is required")
+
+	suite.validator.Clear()
+	suite.config.PostgreSQL = &schema.PostgreSQLStorageConfiguration{
 		SQLStorageConfiguration: schema.SQLStorageConfiguration{
+			Host:     "postgre",
+			Username: "myuser",
+			Password: "pass",
+			Database: "database",
+		},
+	}
+	ValidateStorage(suite.config, suite.validator)
+
+	suite.Assert().Len(suite.validator.Warnings(), 0)
+	suite.Assert().Len(suite.validator.Errors(), 0)
+}
+
+func (suite *StorageSuite) TestShouldValidatePostgresSSLModeAndSchemaDefaults() {
+	suite.config.PostgreSQL = &schema.PostgreSQLStorageConfiguration{
+		SQLStorageConfiguration: schema.SQLStorageConfiguration{
+			Host:     "db1",
 			Username: "myuser",
 			Password: "pass",
 			Database: "database",
 		},
 	}
 
-	ValidateStorage(suite.configuration, suite.validator)
+	ValidateStorage(suite.config, suite.validator)
 
-	suite.Assert().False(suite.validator.HasWarnings())
-	suite.Assert().False(suite.validator.HasErrors())
+	suite.Assert().Len(suite.validator.Warnings(), 0)
+	suite.Assert().Len(suite.validator.Errors(), 0)
 
-	suite.Assert().Equal("disable", suite.configuration.PostgreSQL.SSLMode)
+	suite.Assert().Equal("disable", suite.config.PostgreSQL.SSL.Mode)
+	suite.Assert().Equal("public", suite.config.PostgreSQL.Schema)
+}
+
+func (suite *StorageSuite) TestShouldValidatePostgresDefaultsDontOverrideConfiguration() {
+	suite.config.PostgreSQL = &schema.PostgreSQLStorageConfiguration{
+		SQLStorageConfiguration: schema.SQLStorageConfiguration{
+			Host:     "db1",
+			Username: "myuser",
+			Password: "pass",
+			Database: "database",
+		},
+		Schema: "authelia",
+		SSL: schema.PostgreSQLSSLStorageConfiguration{
+			Mode: "require",
+		},
+	}
+
+	ValidateStorage(suite.config, suite.validator)
+
+	suite.Assert().Len(suite.validator.Warnings(), 0)
+	suite.Assert().Len(suite.validator.Errors(), 0)
+
+	suite.Assert().Equal("require", suite.config.PostgreSQL.SSL.Mode)
+	suite.Assert().Equal("authelia", suite.config.PostgreSQL.Schema)
 }
 
 func (suite *StorageSuite) TestShouldValidatePostgresSSLModeMustBeValid() {
-	suite.configuration.PostgreSQL = &schema.PostgreSQLStorageConfiguration{
+	suite.config.PostgreSQL = &schema.PostgreSQLStorageConfiguration{
 		SQLStorageConfiguration: schema.SQLStorageConfiguration{
+			Host:     "db2",
 			Username: "myuser",
 			Password: "pass",
 			Database: "database",
 		},
-		SSLMode: "unknown",
+		SSL: schema.PostgreSQLSSLStorageConfiguration{
+			Mode: "unknown",
+		},
 	}
 
-	ValidateStorage(suite.configuration, suite.validator)
+	ValidateStorage(suite.config, suite.validator)
 
-	suite.Assert().False(suite.validator.HasWarnings())
+	suite.Assert().Len(suite.validator.Warnings(), 0)
 	suite.Require().Len(suite.validator.Errors(), 1)
-	suite.Assert().EqualError(suite.validator.Errors()[0], "SSL mode must be 'disable', 'require', 'verify-ca', or 'verify-full'")
+	suite.Assert().EqualError(suite.validator.Errors()[0], "storage: postgres: ssl: option 'mode' must be one of 'disable', 'require', 'verify-ca', 'verify-full' but it is configured as 'unknown'")
+}
+
+// Deprecated. TODO: Remove in v4.36.0.
+func (suite *StorageSuite) TestShouldValidatePostgresSSLModeMustBeMappedForDeprecations() {
+	suite.config.PostgreSQL = &schema.PostgreSQLStorageConfiguration{
+		SQLStorageConfiguration: schema.SQLStorageConfiguration{
+			Host:     "pg",
+			Username: "myuser",
+			Password: "pass",
+			Database: "database",
+		},
+		SSLMode: "require",
+	}
+
+	ValidateStorage(suite.config, suite.validator)
+
+	suite.Assert().Len(suite.validator.Warnings(), 0)
+	suite.Assert().Len(suite.validator.Errors(), 0)
+
+	suite.Assert().Equal(suite.config.PostgreSQL.SSL.Mode, "require")
+}
+
+func (suite *StorageSuite) TestShouldRaiseErrorOnNoEncryptionKey() {
+	suite.config.EncryptionKey = ""
+	suite.config.Local = &schema.LocalStorageConfiguration{
+		Path: "/this/is/a/path",
+	}
+
+	ValidateStorage(suite.config, suite.validator)
+
+	suite.Require().Len(suite.validator.Warnings(), 0)
+	suite.Require().Len(suite.validator.Errors(), 1)
+	suite.Assert().EqualError(suite.validator.Errors()[0], "storage: option 'encryption_key' must is required")
+}
+
+func (suite *StorageSuite) TestShouldRaiseErrorOnShortEncryptionKey() {
+	suite.config.EncryptionKey = "abc"
+	suite.config.Local = &schema.LocalStorageConfiguration{
+		Path: "/this/is/a/path",
+	}
+
+	ValidateStorage(suite.config, suite.validator)
+
+	suite.Require().Len(suite.validator.Warnings(), 0)
+	suite.Require().Len(suite.validator.Errors(), 1)
+	suite.Assert().EqualError(suite.validator.Errors()[0], "storage: option 'encryption_key' must be 20 characters or longer")
 }
 
 func TestShouldRunStorageSuite(t *testing.T) {

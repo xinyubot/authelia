@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/authelia/authelia/internal/authentication"
-	"github.com/authelia/authelia/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/authentication"
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
 )
 
 // PolicyToLevel converts a string policy to int authorization level.
@@ -23,6 +23,22 @@ func PolicyToLevel(policy string) Level {
 	}
 	// By default the deny policy applies.
 	return Denied
+}
+
+// LevelToPolicy converts a int authorization level to string policy.
+func LevelToPolicy(level Level) (policy string) {
+	switch level {
+	case Bypass:
+		return bypass
+	case OneFactor:
+		return oneFactor
+	case TwoFactor:
+		return twoFactor
+	case Denied:
+		return deny
+	}
+
+	return deny
 }
 
 func schemaSubjectToACLSubject(subjectRule string) (subject AccessControlSubject) {

@@ -7,7 +7,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/authelia/authelia/internal/utils"
+	"github.com/authelia/authelia/v4/internal/utils"
 )
 
 var kubernetesSuiteName = "Kubernetes"
@@ -40,7 +40,7 @@ func init() {
 
 		log.Debug("Building authelia:dist image or use cache if already built...")
 
-		if os.Getenv("CI") != stringTrue {
+		if os.Getenv("CI") != t {
 			if err := utils.Shell("authelia-scripts docker build").Run(); err != nil {
 				return err
 			}

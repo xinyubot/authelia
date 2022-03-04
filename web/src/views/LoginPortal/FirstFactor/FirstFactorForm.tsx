@@ -2,7 +2,8 @@ import React, { MutableRefObject, useEffect, useRef, useState } from "react";
 
 import { makeStyles, Grid, Button, FormControlLabel, Checkbox, Link } from "@material-ui/core";
 import classnames from "classnames";
-import { useHistory } from "react-router";
+import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 
 import FixedTextField from "@components/FixedTextField";
 import { ResetPasswordStep1Route } from "@constants/Routes";
@@ -24,7 +25,7 @@ export interface Props {
 
 const FirstFactorForm = function (props: Props) {
     const style = useStyles();
-    const history = useHistory();
+    const navigate = useNavigate();
     const redirectionURL = useRedirectionURL();
     const requestMethod = useRequestMethod();
 
@@ -37,6 +38,7 @@ const FirstFactorForm = function (props: Props) {
     // TODO (PR: #806, Issue: #511) potentially refactor
     const usernameRef = useRef() as MutableRefObject<HTMLInputElement>;
     const passwordRef = useRef() as MutableRefObject<HTMLInputElement>;
+    const { t: translate } = useTranslation("Portal");
     useEffect(() => {
         const timeout = setTimeout(() => usernameRef.current.focus(), 10);
         return () => clearTimeout(timeout);
@@ -66,7 +68,7 @@ const FirstFactorForm = function (props: Props) {
             props.onAuthenticationSuccess(res ? res.redirect : undefined);
         } catch (err) {
             console.error(err);
-            createErrorNotification("Incorrect username or password.");
+            createErrorNotification(translate("Incorrect username or password"));
             props.onAuthenticationFailure();
             setPassword("");
             passwordRef.current.focus();
@@ -74,18 +76,18 @@ const FirstFactorForm = function (props: Props) {
     };
 
     const handleResetPasswordClick = () => {
-        history.push(ResetPasswordStep1Route);
+        navigate(ResetPasswordStep1Route);
     };
 
     return (
-        <LoginLayout id="first-factor-stage" title="Sign in" showBrand>
+        <LoginLayout id="first-factor-stage" title={translate("Sign in")} showBrand>
             <Grid container spacing={2}>
                 <Grid item xs={12}>
                     <FixedTextField
                         // TODO (PR: #806, Issue: #511) potentially refactor
                         inputRef={usernameRef}
                         id="username-textfield"
-                        label="Username"
+                        label={translate("Username")}
                         variant="outlined"
                         required
                         value={username}
@@ -115,7 +117,7 @@ const FirstFactorForm = function (props: Props) {
                         // TODO (PR: #806, Issue: #511) potentially refactor
                         inputRef={passwordRef}
                         id="password-textfield"
-                        label="Password"
+                        label={translate("Password")}
                         variant="outlined"
                         required
                         fullWidth
@@ -139,52 +141,32 @@ const FirstFactorForm = function (props: Props) {
                         }}
                     />
                 </Grid>
-                {props.rememberMe || props.resetPassword ? (
-                    <Grid
-                        item
-                        xs={12}
-                        className={
-                            props.rememberMe
-                                ? classnames(style.leftAlign, style.actionRow)
-                                : classnames(style.leftAlign, style.flexEnd, style.actionRow)
-                        }
-                    >
-                        {props.rememberMe ? (
-                            <FormControlLabel
-                                control={
-                                    <Checkbox
-                                        id="remember-checkbox"
-                                        disabled={disabled}
-                                        checked={rememberMe}
-                                        onChange={handleRememberMeChange}
-                                        onKeyPress={(ev) => {
-                                            if (ev.key === "Enter") {
-                                                if (!username.length) {
-                                                    usernameRef.current.focus();
-                                                } else if (!password.length) {
-                                                    passwordRef.current.focus();
-                                                }
-                                                handleSignIn();
+                {props.rememberMe ? (
+                    <Grid item xs={12} className={classnames(style.actionRow)}>
+                        <FormControlLabel
+                            control={
+                                <Checkbox
+                                    id="remember-checkbox"
+                                    disabled={disabled}
+                                    checked={rememberMe}
+                                    onChange={handleRememberMeChange}
+                                    onKeyPress={(ev) => {
+                                        if (ev.key === "Enter") {
+                                            if (!username.length) {
+                                                usernameRef.current.focus();
+                                            } else if (!password.length) {
+                                                passwordRef.current.focus();
                                             }
-                                        }}
-                                        value="rememberMe"
-                                        color="primary"
-                                    />
-                                }
-                                className={style.rememberMe}
-                                label="Remember me"
-                            />
-                        ) : null}
-                        {props.resetPassword ? (
-                            <Link
-                                id="reset-password-button"
-                                component="button"
-                                onClick={handleResetPasswordClick}
-                                className={style.resetLink}
-                            >
-                                Reset password?
-                            </Link>
-                        ) : null}
+                                            handleSignIn();
+                                        }
+                                    }}
+                                    value="rememberMe"
+                                    color="primary"
+                                />
+                            }
+                            className={style.rememberMe}
+                            label={translate("Remember me")}
+                        />
                     </Grid>
                 ) : null}
                 <Grid item xs={12}>
@@ -196,9 +178,21 @@ const FirstFactorForm = function (props: Props) {
                         disabled={disabled}
                         onClick={handleSignIn}
                     >
-                        Sign in
+                        {translate("Sign in")}
                     </Button>
                 </Grid>
+                {props.resetPassword ? (
+                    <Grid item xs={12} className={classnames(style.actionRow, style.flexEnd)}>
+                        <Link
+                            id="reset-password-button"
+                            component="button"
+                            onClick={handleResetPasswordClick}
+                            className={style.resetLink}
+                        >
+                            {translate("Reset password?")}
+                        </Link>
+                    </Grid>
+                ) : null}
             </Grid>
         </LoginLayout>
     );
@@ -223,12 +217,5 @@ const useStyles = makeStyles((theme) => ({
     },
     flexEnd: {
         justifyContent: "flex-end",
-    },
-    leftAlign: {
-        textAlign: "left",
-    },
-    rightAlign: {
-        textAlign: "right",
-        verticalAlign: "bottom",
     },
 }));

@@ -11,12 +11,12 @@ import (
 
 	"github.com/valyala/fasthttp"
 
-	"github.com/authelia/authelia/internal/authentication"
-	"github.com/authelia/authelia/internal/authorization"
-	"github.com/authelia/authelia/internal/configuration/schema"
-	"github.com/authelia/authelia/internal/middlewares"
-	"github.com/authelia/authelia/internal/session"
-	"github.com/authelia/authelia/internal/utils"
+	"github.com/authelia/authelia/v4/internal/authentication"
+	"github.com/authelia/authelia/v4/internal/authorization"
+	"github.com/authelia/authelia/v4/internal/configuration/schema"
+	"github.com/authelia/authelia/v4/internal/middlewares"
+	"github.com/authelia/authelia/v4/internal/session"
+	"github.com/authelia/authelia/v4/internal/utils"
 )
 
 func isURLUnderProtectedDomain(url *url.URL, domain string) bool {
@@ -33,7 +33,7 @@ func isSchemeWSS(url *url.URL) bool {
 
 // parseBasicAuth parses an HTTP Basic Authentication string.
 // "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==" returns ("Aladdin", "open sesame", true).
-func parseBasicAuth(header, auth string) (username, password string, err error) {
+func parseBasicAuth(header []byte, auth string) (username, password string, err error) {
 	if !strings.HasPrefix(auth, authPrefix) {
 		return "", "", fmt.Errorf("%s prefix not found in %s header", strings.Trim(authPrefix, " "), header)
 	}
@@ -47,7 +47,7 @@ func parseBasicAuth(header, auth string) (username, password string, err error) 
 	s := strings.IndexByte(cs, ':')
 
 	if s < 0 {
-		return "", "", fmt.Errorf("Format of %s header must be user:password", header)
+		return "", "", fmt.Errorf("format of %s header must be user:password", header)
 	}
 
 	return cs[:s], cs[s+1:], nil
@@ -73,7 +73,7 @@ func isTargetURLAuthorized(authorizer *authorization.Authorizer, targetURL url.U
 		// deduce the access is forbidden
 		// For anonymous users though, we cannot be sure that she
 		// could not be granted the rights to access the resource. Consequently
-		// for anonymous users we send Unauthorized instead of Forbidden
+		// for anonymous users we send Unauthorized instead of Forbidden.
 		return Forbidden
 	case level == authorization.OneFactor && authLevel >= authentication.OneFactor,
 		level == authorization.TwoFactor && authLevel >= authentication.TwoFactor:
@@ -85,29 +85,29 @@ func isTargetURLAuthorized(authorizer *authorization.Authorizer, targetURL url.U
 
 // verifyBasicAuth verify that the provided username and password are correct and
 // that the user is authorized to target the resource.
-func verifyBasicAuth(header string, auth []byte, targetURL url.URL, ctx *middlewares.AutheliaCtx) (username, name string, groups, emails []string, authLevel authentication.Level, err error) { //nolint:unparam
+func verifyBasicAuth(ctx *middlewares.AutheliaCtx, header, auth []byte) (username, name string, groups, emails []string, authLevel authentication.Level, err error) {
 	username, password, err := parseBasicAuth(header, string(auth))
 
 	if err != nil {
-		return "", "", nil, nil, authentication.NotAuthenticated, fmt.Errorf("Unable to parse content of %s header: %s", header, err)
+		return "", "", nil, nil, authentication.NotAuthenticated, fmt.Errorf("unable to parse content of %s header: %s", header, err)
 	}
 
 	authenticated, err := ctx.Providers.UserProvider.CheckUserPassword(username, password)
 
 	if err != nil {
-		return "", "", nil, nil, authentication.NotAuthenticated, fmt.Errorf("Unable to check credentials extracted from %s header: %s", header, err)
+		return "", "", nil, nil, authentication.NotAuthenticated, fmt.Errorf("unable to check credentials extracted from %s header: %w", header, err)
 	}
 
 	// If the user is not correctly authenticated, send a 401.
 	if !authenticated {
-		// Request Basic Authentication otherwise
-		return "", "", nil, nil, authentication.NotAuthenticated, fmt.Errorf("User %s is not authenticated", username)
+		// Request Basic Authentication otherwise.
+		return "", "", nil, nil, authentication.NotAuthenticated, fmt.Errorf("user %s is not authenticated", username)
 	}
 
 	details, err := ctx.Providers.UserProvider.GetDetails(username)
 
 	if err != nil {
-		return "", "", nil, nil, authentication.NotAuthenticated, fmt.Errorf("Unable to retrieve details of user %s: %s", username, err)
+		return "", "", nil, nil, authentication.NotAuthenticated, fmt.Errorf("unable to retrieve details of user %s: %s", username, err)
 	}
 
 	return username, details.DisplayName, details.Groups, details.Emails, authentication.OneFactor, nil
@@ -116,14 +116,14 @@ func verifyBasicAuth(header string, auth []byte, targetURL url.URL, ctx *middlew
 // setForwardedHeaders set the forwarded User, Groups, Name and Email headers.
 func setForwardedHeaders(headers *fasthttp.ResponseHeader, username, name string, groups, emails []string) {
 	if username != "" {
-		headers.Set(remoteUserHeader, username)
-		headers.Set(remoteGroupsHeader, strings.Join(groups, ","))
-		headers.Set(remoteNameHeader, name)
+		headers.SetBytesK(headerRemoteUser, username)
+		headers.SetBytesK(headerRemoteGroups, strings.Join(groups, ","))
+		headers.SetBytesK(headerRemoteName, name)
 
 		if emails != nil {
-			headers.Set(remoteEmailHeader, emails[0])
+			headers.SetBytesK(headerRemoteEmail, emails[0])
 		} else {
-			headers.Set(remoteEmailHeader, "")
+			headers.SetBytesK(headerRemoteEmail, "")
 		}
 	}
 }
@@ -155,20 +155,20 @@ func verifySessionCookie(ctx *middlewares.AutheliaCtx, targetURL *url.URL, userS
 	isUserAnonymous := userSession.Username == ""
 
 	if isUserAnonymous && userSession.AuthenticationLevel != authentication.NotAuthenticated {
-		return "", "", nil, nil, authentication.NotAuthenticated, fmt.Errorf("An anonymous user cannot be authenticated. That might be the sign of a compromise")
+		return "", "", nil, nil, authentication.NotAuthenticated, fmt.Errorf("an anonymous user cannot be authenticated. That might be the sign of a compromise")
 	}
 
 	if !userSession.KeepMeLoggedIn && !isUserAnonymous {
 		inactiveLongEnough, err := hasUserBeenInactiveTooLong(ctx)
 		if err != nil {
-			return "", "", nil, nil, authentication.NotAuthenticated, fmt.Errorf("Unable to check if user has been inactive for a long time: %s", err)
+			return "", "", nil, nil, authentication.NotAuthenticated, fmt.Errorf("unable to check if user has been inactive for a long time: %s", err)
 		}
 
 		if inactiveLongEnough {
 			// Destroy the session a new one will be regenerated on next request.
 			err := ctx.Providers.SessionProvider.DestroySession(ctx.RequestCtx)
 			if err != nil {
-				return "", "", nil, nil, authentication.NotAuthenticated, fmt.Errorf("Unable to destroy user session after long inactivity: %s", err)
+				return "", "", nil, nil, authentication.NotAuthenticated, fmt.Errorf("unable to destroy user session after long inactivity: %s", err)
 			}
 
 			return userSession.Username, userSession.DisplayName, userSession.Groups, userSession.Emails, authentication.NotAuthenticated, fmt.Errorf("User %s has been inactive for too long", userSession.Username)
@@ -180,21 +180,32 @@ func verifySessionCookie(ctx *middlewares.AutheliaCtx, targetURL *url.URL, userS
 		if err == authentication.ErrUserNotFound {
 			err = ctx.Providers.SessionProvider.DestroySession(ctx.RequestCtx)
 			if err != nil {
-				ctx.Logger.Error(fmt.Errorf("Unable to destroy user session after provider refresh didn't find the user: %s", err))
+				ctx.Logger.Errorf("Unable to destroy user session after provider refresh didn't find the user: %s", err)
 			}
 
 			return userSession.Username, userSession.DisplayName, userSession.Groups, userSession.Emails, authentication.NotAuthenticated, err
 		}
 
-		ctx.Logger.Warnf("Error occurred while attempting to update user details from LDAP: %s", err)
+		ctx.Logger.Errorf("Error occurred while attempting to update user details from LDAP: %s", err)
+
+		return "", "", nil, nil, authentication.NotAuthenticated, err
 	}
 
 	return userSession.Username, userSession.DisplayName, userSession.Groups, userSession.Emails, userSession.AuthenticationLevel, nil
 }
 
 func handleUnauthorized(ctx *middlewares.AutheliaCtx, targetURL fmt.Stringer, isBasicAuth bool, username string, method []byte) {
-	friendlyUsername := "<anonymous>"
-	if username != "" {
+	var (
+		statusCode            int
+		redirectionURL        string
+		friendlyUsername      string
+		friendlyRequestMethod string
+	)
+
+	switch username {
+	case "":
+		friendlyUsername = "<anonymous>"
+	default:
 		friendlyUsername = username
 	}
 
@@ -212,26 +223,39 @@ func handleUnauthorized(ctx *middlewares.AutheliaCtx, targetURL fmt.Stringer, is
 	rd := string(ctx.QueryArgs().Peek("rd"))
 	rm := string(method)
 
-	friendlyMethod := "unknown"
-
-	if rm != "" {
-		friendlyMethod = rm
+	switch rm {
+	case "":
+		friendlyRequestMethod = "unknown"
+	default:
+		friendlyRequestMethod = rm
 	}
 
 	if rd != "" {
-		redirectionURL := ""
-
-		if rm != "" {
-			redirectionURL = fmt.Sprintf("%s?rd=%s&rm=%s", rd, url.QueryEscape(targetURL.String()), rm)
-		} else {
+		switch rm {
+		case "":
 			redirectionURL = fmt.Sprintf("%s?rd=%s", rd, url.QueryEscape(targetURL.String()))
+		default:
+			redirectionURL = fmt.Sprintf("%s?rd=%s&rm=%s", rd, url.QueryEscape(targetURL.String()), rm)
 		}
+	}
 
-		ctx.Logger.Infof("Access to %s (method %s) is not authorized to user %s, redirecting to %s", targetURL.String(), friendlyMethod, friendlyUsername, redirectionURL)
-		ctx.Redirect(redirectionURL, 302)
-		ctx.SetBodyString(fmt.Sprintf("Found. Redirecting to %s", redirectionURL))
+	switch {
+	case ctx.IsXHR() || !ctx.AcceptsMIME("text/html") || rd == "":
+		statusCode = fasthttp.StatusUnauthorized
+	default:
+		switch rm {
+		case fasthttp.MethodGet, fasthttp.MethodOptions, "":
+			statusCode = fasthttp.StatusFound
+		default:
+			statusCode = fasthttp.StatusSeeOther
+		}
+	}
+
+	if redirectionURL != "" {
+		ctx.Logger.Infof("Access to %s (method %s) is not authorized to user %s, responding with status code %d with location redirect to %s", targetURL.String(), friendlyRequestMethod, friendlyUsername, statusCode, redirectionURL)
+		ctx.SpecialRedirect(redirectionURL, statusCode)
 	} else {
-		ctx.Logger.Infof("Access to %s (method %s) is not authorized to user %s, sending 401 response", targetURL.String(), friendlyMethod, friendlyUsername)
+		ctx.Logger.Infof("Access to %s (method %s) is not authorized to user %s, responding with status code %d", targetURL.String(), friendlyRequestMethod, friendlyUsername, statusCode)
 		ctx.ReplyUnauthorized()
 	}
 }
@@ -264,11 +288,11 @@ func generateVerifySessionHasUpToDateProfileTraceLogs(ctx *middlewares.AutheliaC
 	// Check Groups.
 	var groupsDelta []string
 	if len(groupsAdded) != 0 {
-		groupsDelta = append(groupsDelta, fmt.Sprintf("Added: %s.", strings.Join(groupsAdded, ", ")))
+		groupsDelta = append(groupsDelta, fmt.Sprintf("added: %s.", strings.Join(groupsAdded, ", ")))
 	}
 
 	if len(groupsRemoved) != 0 {
-		groupsDelta = append(groupsDelta, fmt.Sprintf("Removed: %s.", strings.Join(groupsRemoved, ", ")))
+		groupsDelta = append(groupsDelta, fmt.Sprintf("removed: %s.", strings.Join(groupsRemoved, ", ")))
 	}
 
 	if len(groupsDelta) != 0 {
@@ -280,11 +304,11 @@ func generateVerifySessionHasUpToDateProfileTraceLogs(ctx *middlewares.AutheliaC
 	// Check Emails.
 	var emailsDelta []string
 	if len(emailsAdded) != 0 {
-		emailsDelta = append(emailsDelta, fmt.Sprintf("Added: %s.", strings.Join(emailsAdded, ", ")))
+		emailsDelta = append(emailsDelta, fmt.Sprintf("added: %s.", strings.Join(emailsAdded, ", ")))
 	}
 
 	if len(emailsRemoved) != 0 {
-		emailsDelta = append(emailsDelta, fmt.Sprintf("Removed: %s.", strings.Join(emailsRemoved, ", ")))
+		emailsDelta = append(emailsDelta, fmt.Sprintf("removed: %s.", strings.Join(emailsRemoved, ", ")))
 	}
 
 	if len(emailsDelta) != 0 {
@@ -328,7 +352,7 @@ func verifySessionHasUpToDateProfile(ctx *middlewares.AutheliaCtx, targetURL *ur
 
 	if !groupsDiff && !emailsDiff && !nameDiff {
 		ctx.Logger.Tracef("Updated profile not detected for %s.", userSession.Username)
-		// Only update TTL if the user has a interval set.
+		// Only update TTL if the user has an interval set.
 		// We get to this check when there were no changes.
 		// Also make sure to update the session even if no difference was found.
 		// This is so that we don't check every subsequent request after this one.
@@ -339,7 +363,7 @@ func verifySessionHasUpToDateProfile(ctx *middlewares.AutheliaCtx, targetURL *ur
 		}
 	} else {
 		ctx.Logger.Debugf("Updated profile detected for %s.", userSession.Username)
-		if ctx.Configuration.Logging.Level == "trace" {
+		if ctx.Configuration.Log.Level == "trace" {
 			generateVerifySessionHasUpToDateProfileTraceLogs(ctx, userSession, details)
 		}
 		userSession.Emails = details.Emails
@@ -367,7 +391,7 @@ func getProfileRefreshSettings(cfg schema.AuthenticationBackendConfiguration) (r
 			refresh = true
 
 			if cfg.RefreshInterval != schema.ProfileRefreshAlways {
-				// Skip Error Check since validator checks it
+				// Skip Error Check since validator checks it.
 				refreshInterval, _ = utils.ParseDurationString(cfg.RefreshInterval)
 			} else {
 				refreshInterval = schema.RefreshIntervalAlways
@@ -379,41 +403,38 @@ func getProfileRefreshSettings(cfg schema.AuthenticationBackendConfiguration) (r
 }
 
 func verifyAuth(ctx *middlewares.AutheliaCtx, targetURL *url.URL, refreshProfile bool, refreshProfileInterval time.Duration) (isBasicAuth bool, username, name string, groups, emails []string, authLevel authentication.Level, err error) {
-	authHeader := ProxyAuthorizationHeader
+	authHeader := headerProxyAuthorization
 	if bytes.Equal(ctx.QueryArgs().Peek("auth"), []byte("basic")) {
-		authHeader = AuthorizationHeader
+		authHeader = headerAuthorization
 		isBasicAuth = true
 	}
 
-	authValue := ctx.Request.Header.Peek(authHeader)
+	authValue := ctx.Request.Header.PeekBytes(authHeader)
 	if authValue != nil {
 		isBasicAuth = true
 	} else if isBasicAuth {
-		err = fmt.Errorf("Basic auth requested via query arg, but no value provided via %s header", authHeader)
+		err = fmt.Errorf("basic auth requested via query arg, but no value provided via %s header", authHeader)
 		return
 	}
 
 	if isBasicAuth {
-		username, name, groups, emails, authLevel, err = verifyBasicAuth(authHeader, authValue, *targetURL, ctx)
+		username, name, groups, emails, authLevel, err = verifyBasicAuth(ctx, authHeader, authValue)
 		return
 	}
 
 	userSession := ctx.GetSession()
 	username, name, groups, emails, authLevel, err = verifySessionCookie(ctx, targetURL, &userSession, refreshProfile, refreshProfileInterval)
 
-	sessionUsername := ctx.Request.Header.Peek(SessionUsernameHeader)
+	sessionUsername := ctx.Request.Header.PeekBytes(headerSessionUsername)
 	if sessionUsername != nil && !strings.EqualFold(string(sessionUsername), username) {
 		ctx.Logger.Warnf("Possible cookie hijack or attempt to bypass security detected destroying the session and sending 401 response")
 
 		err = ctx.Providers.SessionProvider.DestroySession(ctx.RequestCtx)
 		if err != nil {
-			ctx.Logger.Error(
-				fmt.Errorf(
-					"Unable to destroy user session after handler could not match them to their %s header: %s",
-					SessionUsernameHeader, err))
+			ctx.Logger.Errorf("Unable to destroy user session after handler could not match them to their %s header: %s", headerSessionUsername, err)
 		}
 
-		err = fmt.Errorf("Could not match user %s to their %s header with a value of %s when visiting %s", username, SessionUsernameHeader, sessionUsername, targetURL.String())
+		err = fmt.Errorf("could not match user %s to their %s header with a value of %s when visiting %s", username, headerSessionUsername, sessionUsername, targetURL.String())
 	}
 
 	return
@@ -428,37 +449,36 @@ func VerifyGet(cfg schema.AuthenticationBackendConfiguration) middlewares.Reques
 		targetURL, err := ctx.GetOriginalURL()
 
 		if err != nil {
-			ctx.Logger.Error(fmt.Errorf("Unable to parse target URL: %s", err))
+			ctx.Logger.Errorf("Unable to parse target URL: %s", err)
 			ctx.ReplyUnauthorized()
 
 			return
 		}
 
 		if !isSchemeHTTPS(targetURL) && !isSchemeWSS(targetURL) {
-			ctx.Logger.Error(fmt.Errorf("Scheme of target URL %s must be secure since cookies are "+
-				"only transported over a secure connection for security reasons", targetURL.String()))
+			ctx.Logger.Errorf("Scheme of target URL %s must be secure since cookies are "+
+				"only transported over a secure connection for security reasons", targetURL.String())
 			ctx.ReplyUnauthorized()
 
 			return
 		}
 
 		if !isURLUnderProtectedDomain(targetURL, ctx.Configuration.Session.Domain) {
-			ctx.Logger.Error(fmt.Errorf("The target URL %s is not under the protected domain %s",
-				targetURL.String(), ctx.Configuration.Session.Domain))
+			ctx.Logger.Errorf("Target URL %s is not under the protected domain %s",
+				targetURL.String(), ctx.Configuration.Session.Domain)
 			ctx.ReplyUnauthorized()
 
 			return
 		}
 
+		method := ctx.XForwardedMethod()
 		isBasicAuth, username, name, groups, emails, authLevel, err := verifyAuth(ctx, targetURL, refreshProfile, refreshProfileInterval)
 
-		method := ctx.XForwardedMethod()
-
 		if err != nil {
-			ctx.Logger.Error(fmt.Sprintf("Error caught when verifying user authorization: %s", err))
+			ctx.Logger.Errorf("Error caught when verifying user authorization: %s", err)
 
 			if err := updateActivityTimestamp(ctx, isBasicAuth, username); err != nil {
-				ctx.Error(fmt.Errorf("Unable to update last activity: %s", err), operationFailedMessage)
+				ctx.Error(fmt.Errorf("unable to update last activity: %s", err), messageOperationFailed)
 				return
 			}
 
@@ -481,7 +501,7 @@ func VerifyGet(cfg schema.AuthenticationBackendConfiguration) middlewares.Reques
 		}
 
 		if err := updateActivityTimestamp(ctx, isBasicAuth, username); err != nil {
-			ctx.Error(fmt.Errorf("Unable to update last activity: %s", err), operationFailedMessage)
+			ctx.Error(fmt.Errorf("unable to update last activity: %s", err), messageOperationFailed)
 		}
 	}
 }

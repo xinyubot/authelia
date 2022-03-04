@@ -1,7 +1,7 @@
 ---
 layout: default
 title: MariaDB
-parent: Storage backends
+parent: Storage Backends
 grand_parent: Configuration
 nav_order: 1
 ---
@@ -14,6 +14,7 @@ The MySQL storage provider also serves as a MariaDB provider.
 
 ```yaml
 storage:
+  encryption_key: a_very_important_secret
   mysql:
     host: 127.0.0.1
     port: 3306
@@ -24,14 +25,15 @@ storage:
 
 ## Options
 
+### encryption_key
+See the [encryption_key docs](./index.md#encryption_key).
+
 ### host
 <div markdown="1">
 type: string
 {: .label .label-config .label-purple } 
-default: localhost
-{: .label .label-config .label-blue }
-required: no
-{: .label .label-config .label-green }
+required: yes
+{: .label .label-config .label-red }
 </div>
 
 The database server host.
@@ -84,3 +86,15 @@ required: yes
 
 The password paired with the username used to connect to the database. Can also be defined using a
 [secret](../secrets.md) which is also the recommended way when running as a container.
+
+### timeout
+<div markdown="1">
+type: duration
+{: .label .label-config .label-purple }
+default: 5s
+{: .label .label-config .label-blue }
+required: no
+{: .label .label-config .label-green }
+</div>
+
+The SQL connection timeout.

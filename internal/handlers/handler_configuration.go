@@ -1,35 +1,33 @@
 package handlers
 
 import (
-	"github.com/authelia/authelia/internal/authentication"
-	"github.com/authelia/authelia/internal/middlewares"
+	"github.com/authelia/authelia/v4/internal/authentication"
+	"github.com/authelia/authelia/v4/internal/middlewares"
 )
-
-// ConfigurationBody the content returned by the configuration endpoint.
-type ConfigurationBody struct {
-	AvailableMethods    MethodList `json:"available_methods"`
-	SecondFactorEnabled bool       `json:"second_factor_enabled"` // whether second factor is enabled or not.
-	TOTPPeriod          int        `json:"totp_period"`
-}
 
 // ConfigurationGet get the configuration accessible to authenticated users.
 func ConfigurationGet(ctx *middlewares.AutheliaCtx) {
-	body := ConfigurationBody{}
-	body.AvailableMethods = MethodList{authentication.TOTP, authentication.U2F}
-	body.TOTPPeriod = ctx.Configuration.TOTP.Period
-
-	if ctx.Configuration.DuoAPI != nil {
-		body.AvailableMethods = append(body.AvailableMethods, authentication.Push)
+	body := configurationBody{
+		AvailableMethods: make(MethodList, 0, 3),
 	}
 
-	body.SecondFactorEnabled = ctx.Providers.Authorizer.IsSecondFactorEnabled()
+	if ctx.Providers.Authorizer.IsSecondFactorEnabled() {
+		if !ctx.Configuration.TOTP.Disable {
+			body.AvailableMethods = append(body.AvailableMethods, authentication.TOTP)
+		}
 
-	ctx.Logger.Tracef("Second factor enabled: %v", body.SecondFactorEnabled)
+		if !ctx.Configuration.Webauthn.Disable {
+			body.AvailableMethods = append(body.AvailableMethods, authentication.Webauthn)
+		}
+
+		if ctx.Configuration.DuoAPI != nil {
+			body.AvailableMethods = append(body.AvailableMethods, authentication.Push)
+		}
+	}
 
 	ctx.Logger.Tracef("Available methods are %s", body.AvailableMethods)
 
-	err := ctx.SetJSONBody(body)
-	if err != nil {
+	if err := ctx.SetJSONBody(body); err != nil {
 		ctx.Logger.Errorf("Unable to set configuration response in body: %s", err)
 	}
 }

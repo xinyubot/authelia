@@ -3,12 +3,13 @@ package handlers
 import (
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/valyala/fasthttp"
 
-	"github.com/authelia/authelia/internal/authorization"
-	"github.com/authelia/authelia/internal/middlewares"
-	"github.com/authelia/authelia/internal/utils"
+	"github.com/authelia/authelia/v4/internal/authorization"
+	"github.com/authelia/authelia/v4/internal/middlewares"
+	"github.com/authelia/authelia/v4/internal/utils"
 )
 
 // handleOIDCWorkflowResponse handle the redirection upon authentication in the OIDC workflow.
@@ -16,16 +17,17 @@ func handleOIDCWorkflowResponse(ctx *middlewares.AutheliaCtx) {
 	userSession := ctx.GetSession()
 
 	if !authorization.IsAuthLevelSufficient(userSession.AuthenticationLevel, userSession.OIDCWorkflowSession.RequiredAuthorizationLevel) {
-		ctx.Logger.Warn("OIDC requires 2FA, cannot be redirected yet")
+		ctx.Logger.Warnf("OpenID Connect client '%s' requires 2FA, cannot be redirected yet", userSession.OIDCWorkflowSession.ClientID)
 		ctx.ReplyOK()
 
 		return
 	}
 
-	uri, err := ctx.ForwardedProtoHost()
+	uri, err := ctx.ExternalRootURL()
 	if err != nil {
-		ctx.Logger.Errorf("%v", err)
-		handleAuthenticationUnauthorized(ctx, fmt.Errorf("Unable to get forward facing URI"), authenticationFailedMessage)
+		ctx.Logger.Errorf("Unable to determine external Base URL: %v", err)
+
+		respondUnauthorized(ctx, messageOperationFailed)
 
 		return
 	}
@@ -34,13 +36,13 @@ func handleOIDCWorkflowResponse(ctx *middlewares.AutheliaCtx) {
 		userSession.OIDCWorkflowSession,
 		userSession.OIDCWorkflowSession.RequestedScopes,
 		userSession.OIDCWorkflowSession.RequestedAudience) {
-		err := ctx.SetJSONBody(redirectResponse{Redirect: fmt.Sprintf("%s/consent", uri)})
+		err = ctx.SetJSONBody(redirectResponse{Redirect: fmt.Sprintf("%s/consent", uri)})
 
 		if err != nil {
 			ctx.Logger.Errorf("Unable to set default redirection URL in body: %s", err)
 		}
 	} else {
-		err := ctx.SetJSONBody(redirectResponse{Redirect: userSession.OIDCWorkflowSession.AuthURI})
+		err = ctx.SetJSONBody(redirectResponse{Redirect: userSession.OIDCWorkflowSession.AuthURI})
 		if err != nil {
 			ctx.Logger.Errorf("Unable to set default redirection URL in body: %s", err)
 		}
@@ -64,7 +66,7 @@ func Handle1FAResponse(ctx *middlewares.AutheliaCtx, targetURI, requestMethod st
 
 	targetURL, err := url.ParseRequestURI(targetURI)
 	if err != nil {
-		ctx.Error(fmt.Errorf("Unable to parse target URL %s: %s", targetURI, err), authenticationFailedMessage)
+		ctx.Error(fmt.Errorf("unable to parse target URL %s: %s", targetURI, err), messageAuthenticationFailed)
 		return
 	}
 
@@ -88,6 +90,8 @@ func Handle1FAResponse(ctx *middlewares.AutheliaCtx, targetURI, requestMethod st
 	safeRedirection := utils.IsRedirectionSafe(*targetURL, ctx.Configuration.Session.Domain)
 
 	if !safeRedirection {
+		ctx.Logger.Debugf("Redirection URL %s is not safe", targetURI)
+
 		if !ctx.Providers.Authorizer.IsSecondFactorEnabled() && ctx.Configuration.DefaultRedirectionURL != "" {
 			err := ctx.SetJSONBody(redirectResponse{Redirect: ctx.Configuration.DefaultRedirectionURL})
 			if err != nil {
@@ -101,10 +105,8 @@ func Handle1FAResponse(ctx *middlewares.AutheliaCtx, targetURI, requestMethod st
 	}
 
 	ctx.Logger.Debugf("Redirection URL %s is safe", targetURI)
+	err = ctx.SetJSONBody(redirectResponse{Redirect: targetURI})
 
-	response := redirectResponse{Redirect: targetURI}
-
-	err = ctx.SetJSONBody(response)
 	if err != nil {
 		ctx.Logger.Errorf("Unable to set redirection URL in body: %s", err)
 	}
@@ -125,15 +127,17 @@ func Handle2FAResponse(ctx *middlewares.AutheliaCtx, targetURI string) {
 		return
 	}
 
-	targetURL, err := url.ParseRequestURI(targetURI)
+	safe, err := utils.IsRedirectionURISafe(targetURI, ctx.Configuration.Session.Domain)
 
 	if err != nil {
-		ctx.Error(fmt.Errorf("Unable to parse target URL: %s", err), mfaValidationFailedMessage)
+		ctx.Error(fmt.Errorf("unable to check target URL: %s", err), messageMFAValidationFailed)
 		return
 	}
 
-	if targetURL != nil && utils.IsRedirectionSafe(*targetURL, ctx.Configuration.Session.Domain) {
+	if safe {
+		ctx.Logger.Debugf("Redirection URL %s is safe", targetURI)
 		err := ctx.SetJSONBody(redirectResponse{Redirect: targetURI})
+
 		if err != nil {
 			ctx.Logger.Errorf("Unable to set redirection URL in body: %s", err)
 		}
@@ -142,8 +146,46 @@ func Handle2FAResponse(ctx *middlewares.AutheliaCtx, targetURI string) {
 	}
 }
 
-// handleAuthenticationUnauthorized provides harmonized response codes for 1FA.
-func handleAuthenticationUnauthorized(ctx *middlewares.AutheliaCtx, err error, message string) {
+func markAuthenticationAttempt(ctx *middlewares.AutheliaCtx, successful bool, bannedUntil *time.Time, username string, authType string, errAuth error) (err error) {
+	// We only Mark if there was no underlying error.
+	ctx.Logger.Debugf("Mark %s authentication attempt made by user '%s'", authType, username)
+
+	var (
+		requestURI, requestMethod string
+	)
+
+	referer := ctx.Request.Header.Referer()
+	if referer != nil {
+		refererURL, err := url.Parse(string(referer))
+		if err == nil {
+			requestURI = refererURL.Query().Get("rd")
+			requestMethod = refererURL.Query().Get("rm")
+		}
+	}
+
+	if err = ctx.Providers.Regulator.Mark(ctx, successful, bannedUntil != nil, username, requestURI, requestMethod, authType, ctx.RemoteIP()); err != nil {
+		ctx.Logger.Errorf("Unable to mark %s authentication attempt by user '%s': %+v", authType, username, err)
+
+		return err
+	}
+
+	if successful {
+		ctx.Logger.Debugf("Successful %s authentication attempt made by user '%s'", authType, username)
+	} else {
+		switch {
+		case errAuth != nil:
+			ctx.Logger.Errorf("Unsuccessful %s authentication attempt by user '%s': %+v", authType, username, errAuth)
+		case bannedUntil != nil:
+			ctx.Logger.Errorf("Unsuccessful %s authentication attempt by user '%s' and they are banned until %s", authType, username, bannedUntil)
+		default:
+			ctx.Logger.Errorf("Unsuccessful %s authentication attempt by user '%s'", authType, username)
+		}
+	}
+
+	return nil
+}
+
+func respondUnauthorized(ctx *middlewares.AutheliaCtx, message string) {
 	ctx.SetStatusCode(fasthttp.StatusUnauthorized)
-	ctx.Error(err, message)
+	ctx.SetJSONError(message)
 }

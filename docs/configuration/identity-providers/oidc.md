@@ -8,118 +8,15 @@ nav_order: 2
 
 # OpenID Connect
 
-**Authelia** currently supports the [OpenID Connect] OP role as a [**beta**](#roadmap) feature. The OP role is the 
-[OpenID Connect] Provider role, not the Relaying Party or RP role. This means other applications that implement the 
-[OpenID Connect] RP role can use Authelia as an authentication and authorization backend similar to how you may use 
+**Authelia** currently supports the [OpenID Connect] OP role as a [**beta**](#roadmap) feature. The OP role is the
+[OpenID Connect] Provider role, not the Relying Party or RP role. This means other applications that implement the
+[OpenID Connect] RP role can use Authelia as an authentication and authorization backend similar to how you may use
 social media or development platforms for login.
 
-The Relaying Party role is the role which allows an application to use GitHub, Google, or other [OpenID Connect]
+The Relying Party role is the role which allows an application to use GitHub, Google, or other [OpenID Connect]
 providers for authentication and authorization. We do not intend to support this functionality at this moment in time.
 
-## Roadmap
-
-We have decided to implement [OpenID Connect] as a beta feature, it's suggested you only utilize it for testing and
-providing feedback, and should take caution in relying on it in production as of now. [OpenID Connect] and it's related endpoints
-are not enabled by default unless you specifically configure the [OpenID Connect] section.
-
-The beta will be broken up into stages. Each stage will bring additional features. The following table is a *rough* plan
-for which stage will have each feature, and may evolve over time:
-
-<table>
-    <thead>
-      <tr>
-        <th class="tbl-header">Stage</th>
-        <th class="tbl-header">Feature Description</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td rowspan="8" class="tbl-header tbl-beta-stage">beta1 (4.29.0)</td>
-        <td><a href="https://openid.net/specs/openid-connect-core-1_0.html#Consent" target="_blank" rel="noopener noreferrer">User Consent</a></td>
-      </tr>
-      <tr>
-        <td><a href="https://openid.net/specs/openid-connect-core-1_0.html#CodeFlowSteps" target="_blank" rel="noopener noreferrer">Authorization Code Flow</a></td>
-      </tr>
-      <tr>
-        <td><a href="https://openid.net/specs/openid-connect-discovery-1_0.html" target="_blank" rel="noopener noreferrer">OpenID Connect Discovery</a></td>
-      </tr>
-      <tr>
-        <td>RS256 Signature Strategy</td>
-      </tr>
-      <tr>
-        <td>Per Client Scope/Grant Type/Response Type Restriction</td>
-      </tr>
-      <tr>
-        <td>Per Client Authorization Policy (1FA/2FA)</td>
-      </tr>
-      <tr>
-        <td class="tbl-beta-stage">Per Client List of Valid Redirection URI's</td>
-      </tr>
-      <tr>
-        <td class="tbl-beta-stage"><a href="https://datatracker.ietf.org/doc/html/rfc6749#section-2.1" target="_blank"rel="noopener noreferrer">Confidential Client Type</a></td>
-      </tr>
-      <tr>
-        <td rowspan="6" class="tbl-header tbl-beta-stage">beta2 (4.30.0) <sup>1</sup></td>
-        <td class="tbl-beta-stage"><a href="https://openid.net/specs/openid-connect-core-1_0.html#UserInfo" target="_blank" rel="noopener noreferrer">Userinfo Endpoint</a> (missed in beta1)</td>
-      </tr>
-      <tr>
-        <td class="tbl-beta-stage">Parameter Entropy Configuration</td>
-      </tr>
-      <tr>
-        <td class="tbl-beta-stage">Token/Code Lifespan Configuration</td>
-      </tr>
-      <tr>
-        <td class="tbl-beta-stage">Client Debug Messages</td>
-      </tr>
-      <tr>
-        <td class="tbl-beta-stage">Client Audience</td>
-      </tr>
-      <tr>
-        <td class="tbl-beta-stage"><a href="https://datatracker.ietf.org/doc/html/rfc6749#section-2.1" target="_blank"rel="noopener noreferrer">Public Client Type</a></td>
-      </tr>
-      <tr>
-        <td rowspan="2" class="tbl-header tbl-beta-stage">beta3 <sup>1</sup></td>
-        <td>Token Storage</td>
-      </tr>
-      <tr>
-        <td class="tbl-beta-stage">Audit Storage</td>
-      </tr>
-      <tr>
-        <td rowspan="4" class="tbl-header tbl-beta-stage">beta4 <sup>1</sup></td>
-        <td><a href="https://openid.net/specs/openid-connect-backchannel-1_0.html" target="_blank" rel="noopener noreferrer">Back-Channel Logout</a></td>
-      </tr>
-      <tr>
-        <td>Deny Refresh on Session Expiration</td>
-      </tr>
-      <tr>
-        <td><a href="https://openid.net/specs/openid-connect-messages-1_0-20.html#rotate.sig.keys" target="_blank" rel="noopener noreferrer">Signing Key Rotation Policy</a></td>
-      </tr>
-      <tr>
-        <td class="tbl-beta-stage">Client Secrets Hashed in Configuration</td>
-      </tr>
-      <tr>
-        <td class="tbl-header tbl-beta-stage">GA <sup>1</sup></td>
-        <td class="tbl-beta-stage">General Availability after previous stages are vetted for bug fixes</td>
-      </tr>
-      <tr>
-        <td rowspan="4" class="tbl-header">misc</td>
-        <td>List of other features that may be implemented</td>
-      </tr>
-      <tr>
-        <td class="tbl-beta-stage"><a href="https://openid.net/specs/openid-connect-frontchannel-1_0.html" target="_blank" rel="noopener noreferrer">Front-Channel Logout</a> <sup>2</sup></td>
-      </tr>
-      <tr>
-        <td class="tbl-beta-stage"><a href="https://datatracker.ietf.org/doc/html/rfc8414" target="_blank" rel="noopener noreferrer">OAuth 2.0 Authorization Server Metadata</a> <sup>2</sup></td>
-      </tr>
-      <tr>
-        <td class="tbl-beta-stage"><a href="https://openid.net/specs/openid-connect-session-1_0-17.html" target="_blank" rel="noopener noreferrer">OpenID Connect Session Management</a> <sup>2</sup></td>
-      </tr>
-    </tbody>
-</table>
-
-¹ _This stage has not been implemented as of yet_.
-
-² _This individual feature has not been implemented as of yet_.
+More information about the beta can be found in the [roadmap](../../roadmap/oidc.md).
 
 ## Configuration
 
@@ -137,6 +34,7 @@ identity_providers:
     id_token_lifespan: 1h
     refresh_token_lifespan: 90m
     enable_client_debug_messages: false
+    enforce_pkce: public_clients_only
     clients:
       - id: myapp
         description: My Application
@@ -252,7 +150,7 @@ The maximum lifetime of a refresh token. The
 refresh token can be used to obtain new refresh tokens as well as access tokens or id tokens with an
 up-to-date expiration. For more information read these docs about [token lifespan].
 
-A good starting point is 50% more or 30 minutes more (which ever is less) time than the highest lifespan out of the 
+A good starting point is 50% more or 30 minutes more (which ever is less) time than the highest lifespan out of the
 [access token lifespan](#access_token_lifespan), the [authorize code lifespan](#authorize_code_lifespan), and the
 [id token lifespan](#id_token_lifespan). For instance the default for all of these is 60 minutes, so the default refresh
 token lifespan is 90 minutes.
@@ -286,6 +184,39 @@ This controls the minimum length of the `nonce` and `state` parameters.
 ***Security Notice:*** Changing this value is generally discouraged, reducing it from the default can theoretically
 make certain scenarios less secure. It is highly encouraged that if your OpenID Connect RP does not send these parameters
 or sends parameters with a lower length than the default that they implement a change rather than changing this value.
+
+### enforce_pkce
+<div markdown="1">
+type: string
+{: .label .label-config .label-purple } 
+default: public_clients_only
+{: .label .label-config .label-blue }
+required: no
+{: .label .label-config .label-green }
+</div>
+
+[Proof Key for Code Exchange](https://datatracker.ietf.org/doc/html/rfc7636) enforcement policy: if specified, must be either `never`, `public_clients_only` or `always`.
+
+If set to `public_clients_only` (default), PKCE will be required for public clients using the Authorization Code flow.
+
+When set to `always`, PKCE will be required for all clients using the Authorization Code flow.
+
+***Security Notice:*** Changing this value to `never` is generally discouraged, reducing it from the default can theoretically
+make certain client-side applications (mobile applications, SPA) vulnerable to CSRF and authorization code interception attacks.
+
+### enable_pkce_plain_challenge
+<div markdown="1">
+type: boolean
+{: .label .label-config .label-purple }
+default: false
+{: .label .label-config .label-blue }
+required: no
+{: .label .label-config .label-green }
+</div>
+
+Allows PKCE `plain` challenges when set to `true`.
+
+***Security Notice:*** Changing this value is generally discouraged. Applications should use the `S256` PKCE challenge method instead.
 
 ### clients
 
@@ -343,9 +274,9 @@ required: no
 {: .label .label-config .label-green }
 </div>
 
-This enables the public client type for this client. This is for clients that are not capable of maintaining 
+This enables the public client type for this client. This is for clients that are not capable of maintaining
 confidentiality of credentials, you can read more about client types in [RFC6749](https://datatracker.ietf.org/doc/html/rfc6749#section-2.1).
-This is particularly useful for SPA's and CLI tools. This option requires setting the [client secret](#secret) to a 
+This is particularly useful for SPA's and CLI tools. This option requires setting the [client secret](#secret) to a
 blank string.
 
 In addition to the standard rules for redirect URIs, public clients can use the `urn:ietf:wg:oauth:2.0:oob` redirect URI.
@@ -407,7 +338,7 @@ their redirect URIs are as follows:
 
 1. If a client attempts to authorize with Authelia and its redirect URI is not listed in the client configuration the
    attempt to authorize wil fail and an error will be generated.
-2. The redirect URIs are case-sensitive. 
+2. The redirect URIs are case-sensitive.
 3. The URI must include a scheme and that scheme must be one of `http` or `https`.
 4. The client can ignore rule 3 and use `urn:ietf:wg:oauth:2.0:oob` if it is a [public](#public) client type.
 
@@ -437,7 +368,7 @@ required: no
 {: .label .label-config .label-green }
 </div>
 
-A list of response types this client can return. _It is recommended that this isn't configured at this time unless you 
+A list of response types this client can return. _It is recommended that this isn't configured at this time unless you
 know what you're doing_. Valid options are: `code`, `code id_token`, `id_token`, `token id_token`, `token`,
 `token id_token code`.
 
@@ -466,7 +397,7 @@ required: no
 {: .label .label-config .label-green }
 </div>
 
-The algorithm used to sign the userinfo endpoint responses. This can either be `none` or `RS256`. 
+The algorithm used to sign the userinfo endpoint responses. This can either be `none` or `RS256`.
 
 ## Generating a random secret
 
@@ -484,48 +415,52 @@ characters. For Kubernetes, see [this section too](../secrets.md#Kubernetes).
 
 ### openid
 
-This is the default scope for openid. This field is forced on every client by the configuration
-validation that Authelia does.
+This is the default scope for openid. This field is forced on every client by the configuration validation that Authelia
+does.
 
-|JWT Field|JWT Type     |Authelia Attribute|Description                                  |
-|:-------:|:-----------:|:----------------:|:-------------------------------------------:|
-|sub      |string       |Username          |The username the user used to login with     |
-|scope    |string       |scopes            |Granted scopes (space delimited)             |
-|scp      |array[string]|scopes            |Granted scopes                               |
-|iss      |string       |hostname          |The issuer name, determined by URL           |
-|at_hash  |string       |_N/A_             |Access Token Hash                            |
-|aud      |array[string]|_N/A_             |Audience                                     |
-|exp      |number       |_N/A_             |Expires                                      |
-|auth_time|number       |_N/A_             |The time the user authenticated with Authelia|
-|rat      |number       |_N/A_             |The time when the token was requested        |
-|iat      |number       |_N/A_             |The time when the token was issued           |
-|jti      |string(uuid) |_N/A_             |JWT Identifier                               |
+_**Important Note:** The claim `sub` is planned to be changed in the future to a randomly unique value to identify the
+individual user. Please use the claim `preferred_username` instead._
+
+|       Claim        |   JWT Type    | Authelia Attribute |                  Description                  |
+|:------------------:|:-------------:|:------------------:|:---------------------------------------------:|
+|        sub         |    string     |      username      |   The username the user used to login with    |
+|       scope        |    string     |       scopes       |       Granted scopes (space delimited)        |
+|        scp         | array[string] |       scopes       |                Granted scopes                 |
+|        iss         |    string     |      hostname      |      The issuer name, determined by URL       |
+|      at_hash       |    string     |       _N/A_        |               Access Token Hash               |
+|        aud         | array[string] |       _N/A_        |                   Audience                    |
+|        exp         |    number     |       _N/A_        |                    Expires                    |
+|     auth_time      |    number     |       _N/A_        | The time the user authenticated with Authelia |
+|        rat         |    number     |       _N/A_        |     The time when the token was requested     |
+|        iat         |    number     |       _N/A_        |      The time when the token was issued       |
+|        jti         | string(uuid)  |       _N/A_        |                JWT Identifier                 |
 
 ### groups
 
 This scope includes the groups the authentication backend reports the user is a member of in the token.
 
-|JWT Field|JWT Type     |Authelia Attribute|Description           |
-|:-------:|:-----------:|:----------------:|:--------------------:|
-|groups   |array[string]|Groups            |The users display name|
+| Claim  |   JWT Type    | Authelia Attribute |      Description       |
+|:------:|:-------------:|:------------------:|:----------------------:|
+| groups | array[string] |       groups       | The users display name |
 
 ### email
 
 This scope includes the email information the authentication backend reports about the user in the token.
 
-|JWT Field     |JWT Type     |Authelia Attribute|Description                                              |
-|:------------:|:-----------:|:----------------:|:-------------------------------------------------------:|
-|email         |string       |email[0]          |The first email address in the list of emails            |
-|email_verified|bool         |_N/A_             |If the email is verified, assumed true for the time being|
-|alt_emails    |array[string]|email[1:]         |All email addresses that are not in the email JWT field  |
+|     Claim      |   JWT Type    | Authelia Attribute |                        Description                        |
+|:--------------:|:-------------:|:------------------:|:---------------------------------------------------------:|
+|     email      |    string     |      email[0]      |       The first email address in the list of emails       |
+| email_verified |     bool      |       _N/A_        | If the email is verified, assumed true for the time being |
+|   alt_emails   | array[string] |     email[1:]      |  All email addresses that are not in the email JWT field  |
 
 ### profile
 
 This scope includes the profile information the authentication backend reports about the user in the token.
 
-|JWT Field|JWT Type|Authelia Attribute|Description           |
-|:-------:|:------:|:----------------:|:--------------------:|
-|name     |string  | display_name     |The users display name|
+|       Claim        | JWT Type | Authelia Attribute |               Description                |
+|:------------------:|:--------:|:------------------:|:----------------------------------------:|
+| preferred_username |  string  |      username      | The username the user used to login with |
+|        name        |  string  |    display_name    |          The users display name          |
 
 ## Endpoint Implementations
 
@@ -534,15 +469,16 @@ particularly those that don't use [discovery](https://openid.net/specs/openid-co
 appended to the end of the primary URL used to access Authelia. For example in the Discovery example provided you access
 Authelia via https://auth.example.com, the discovery URL is https://auth.example.com/.well-known/openid-configuration.
 
-|Endpoint     |Path                            |
-|:-----------:|:------------------------------:|
-|Discovery    |.well-known/openid-configuration|
-|JWKS         |api/oidc/jwks                   |
-|Authorization|api/oidc/authorize              |
-|Token        |api/oidc/token                  |
-|Introspection|api/oidc/introspect             |
-|Revocation   |api/oidc/revoke                 |
-|Userinfo     |api/oidc/userinfo               |
+|   Endpoint    |                     Path                      |
+|:-------------:|:---------------------------------------------:|
+|   Discovery   |    [root]/.well-known/openid-configuration    |
+|   Metadata    | [root]/.well-known/oauth-authorization-server |
+|     JWKS      |             [root]/api/oidc/jwks              |
+| Authorization |         [root]/api/oidc/authorization         |
+|     Token     |             [root]/api/oidc/token             |
+| Introspection |         [root]/api/oidc/introspection         |
+|  Revocation   |          [root]/api/oidc/revocation           |
+|   Userinfo    |           [root]/api/oidc/userinfo            |
 
 [OpenID Connect]: https://openid.net/connect/
 [token lifespan]: https://docs.apigee.com/api-platform/antipatterns/oauth-long-expiration
