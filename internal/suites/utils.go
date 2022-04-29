@@ -48,8 +48,8 @@ func (rs *RodSession) collectCoverage(page *rod.Page) {
 	}
 }
 
-func (rs *RodSession) collectScreenshot(err error, page *rod.Page) {
-	if err == context.DeadlineExceeded && os.Getenv("CI") == t {
+func (rs *RodSession) collectScreenshot(page *rod.Page) {
+	if os.Getenv("CI") == t {
 		base := "/buildkite/screenshots"
 		build := os.Getenv("BUILDKITE_BUILD_NUMBER")
 		suite := strings.ToLower(os.Getenv("SUITE"))
@@ -66,6 +66,12 @@ func (rs *RodSession) collectScreenshot(err error, page *rod.Page) {
 		r := strings.NewReplacer(p, "", "(", "", ")", "", "*", "", ".", "-")
 
 		page.MustScreenshotFullPage(fmt.Sprintf("%s/%s.jpg", path, r.Replace(fn.Name())))
+	}
+}
+
+func (rs *RodSession) collectScreenshotDeadlineExceeded(err error, page *rod.Page) {
+	if err == context.DeadlineExceeded {
+		rs.collectScreenshot(page)
 	}
 }
 

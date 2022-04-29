@@ -52,7 +52,7 @@ func (s *OneFactorSuite) TestShouldAuthorizeSecretAfterOneFactor() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	targetURL := fmt.Sprintf("%s/secret.html", SingleFactorBaseURL)
@@ -64,7 +64,7 @@ func (s *OneFactorSuite) TestShouldRedirectToSecondFactor() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	targetURL := fmt.Sprintf("%s/secret.html", AdminBaseURL)
@@ -76,7 +76,7 @@ func (s *OneFactorSuite) TestShouldDenyAccessOnBadPassword() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	targetURL := fmt.Sprintf("%s/secret.html", AdminBaseURL)

@@ -49,7 +49,7 @@ func (s *PasswordComplexityScenario) TestShouldRejectPasswordReset() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	s.doVisit(s.T(), s.Context(ctx), GetLoginBaseURL())

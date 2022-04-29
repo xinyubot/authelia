@@ -53,7 +53,7 @@ func (s *AvailableMethodsScenario) TestShouldCheckAvailableMethods() {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	s.doLoginOneFactor(s.T(), s.Context(ctx), "john", "password", false, "")

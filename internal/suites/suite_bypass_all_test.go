@@ -50,7 +50,7 @@ func (s *BypassAllWebDriverSuite) TestShouldAccessPublicResource() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	s.doVisit(s.T(), s.Context(ctx), fmt.Sprintf("%s/secret.html", AdminBaseURL))

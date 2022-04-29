@@ -52,7 +52,7 @@ func (s *TwoFactorSuite) TestShouldAuthorizeSecretAfterTwoFactor() {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	username := testUsername
@@ -78,7 +78,7 @@ func (s *TwoFactorSuite) TestShouldFailTwoFactor() {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	// Register TOTP secret and logout.

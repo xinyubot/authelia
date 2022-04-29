@@ -49,7 +49,7 @@ func (s *ResetPasswordScenario) TestShouldResetPassword() {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	s.doVisit(s.T(), s.Context(ctx), GetLoginBaseURL())
@@ -76,7 +76,7 @@ func (s *ResetPasswordScenario) TestShouldMakeAttackerThinkPasswordResetIsInitia
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	s.doVisit(s.T(), s.Context(ctx), GetLoginBaseURL())
@@ -93,7 +93,7 @@ func (s *ResetPasswordScenario) TestShouldLetUserNoticeThereIsAPasswordMismatch(
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	s.doVisit(s.T(), s.Context(ctx), GetLoginBaseURL())

@@ -62,7 +62,7 @@ func (s *RedirectionCheckScenario) TestShouldRedirectOnLoginOnlyWhenDomainIsSafe
 	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	secret := s.doRegisterThenLogout(s.T(), s.Context(ctx), "john", "password")
@@ -97,7 +97,7 @@ func (s *RedirectionCheckScenario) TestShouldRedirectOnLogoutOnlyWhenDomainIsSaf
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	for url, success := range logoutRedirectionURLs {

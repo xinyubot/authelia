@@ -51,7 +51,7 @@ func (s *UserPreferencesScenario) TestShouldRememberLastUsed2FAMethod() {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	// Authenticate.

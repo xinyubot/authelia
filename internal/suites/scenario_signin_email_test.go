@@ -54,7 +54,7 @@ func (s *SigninEmailScenario) TestShouldSignInWithUserEmail() {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	targetURL := fmt.Sprintf("%s/secret.html", SingleFactorBaseURL)

@@ -34,7 +34,7 @@ func (s *Traefik2Suite) TestXLastShouldKeepSessionAfterRedisRestart() {
 	defer func() {
 		cancel()
 		s.collectCoverage(s.Page)
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 		s.MustClose()
 		err := s.RodSession.Stop()
 		s.Require().NoError(err)

@@ -1,7 +1,6 @@
 package suites
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -32,7 +31,7 @@ func (rs *RodSession) doEnterOTP(t *testing.T, page *rod.Page, code string) {
 	inputs := rs.WaitElementsLocatedByID(t, page, "otp-input input")
 
 	if len(inputs) != len(code) {
-		rs.collectScreenshot(fmt.Errorf("inputs do not match code length"), page)
+		rs.collectScreenshot(page)
 	}
 
 	require.Len(t, inputs, len(code))

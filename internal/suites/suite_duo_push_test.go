@@ -50,7 +50,7 @@ func (s *DuoPushWebDriverSuite) TearDownTest() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 
 		s.collectCoverage(s.Page)
 		s.MustClose()
@@ -331,7 +331,7 @@ func (s *DuoPushWebDriverSuite) TestShouldSucceedAuthentication() {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	var PreAuthAPIResponse = duo.PreAuthResponse{
@@ -358,7 +358,7 @@ func (s *DuoPushWebDriverSuite) TestShouldFailAuthentication() {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	var PreAuthAPIResponse = duo.PreAuthResponse{
@@ -421,7 +421,7 @@ func (s *DuoPushDefaultRedirectionSuite) TestUserIsRedirectedToDefaultURL() {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	var PreAuthAPIResponse = duo.PreAuthResponse{

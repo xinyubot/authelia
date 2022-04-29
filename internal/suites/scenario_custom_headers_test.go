@@ -55,7 +55,7 @@ func (s *CustomHeadersScenario) TestShouldNotForwardCustomHeaderForUnauthenticat
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	s.doVisit(s.T(), s.Context(ctx), fmt.Sprintf("%s/headers", PublicBaseURL))
@@ -86,7 +86,7 @@ func (s *CustomHeadersScenario) TestShouldForwardCustomHeaderForAuthenticatedUse
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	expectedGroups := mapset.NewSetWith("dev", "admins")

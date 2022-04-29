@@ -35,7 +35,7 @@ func (s *OIDCScenario) SetupSuite() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 
 		s.collectCoverage(s.Page)
 		s.MustClose()
@@ -57,7 +57,7 @@ func (s *OIDCScenario) SetupTest() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	s.Page = s.doCreateTab(s.T(), fmt.Sprintf("%s/logout", OIDCBaseURL))
@@ -74,7 +74,7 @@ func (s *OIDCScenario) TestShouldAuthorizeAccessToOIDCApp() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	s.doVisit(s.T(), s.Context(ctx), OIDCBaseURL)
@@ -140,7 +140,7 @@ func (s *OIDCScenario) TestShouldDenyConsent() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	s.doVisit(s.T(), s.Context(ctx), OIDCBaseURL)

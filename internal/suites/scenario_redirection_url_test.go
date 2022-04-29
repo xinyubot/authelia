@@ -52,7 +52,7 @@ func (s *RedirectionURLScenario) TestShouldVerifyCustomURLParametersArePropagate
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	targetURL := fmt.Sprintf("%s/secret.html?myparam=test", SingleFactorBaseURL)

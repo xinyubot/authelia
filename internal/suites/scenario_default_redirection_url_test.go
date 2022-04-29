@@ -54,7 +54,7 @@ func (s *DefaultRedirectionURLScenario) TestUserIsRedirectedToDefaultURL() {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	targetURL := fmt.Sprintf("%s/secret.html", AdminBaseURL)

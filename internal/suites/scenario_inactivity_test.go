@@ -33,7 +33,7 @@ func (s *InactivityScenario) SetupSuite() {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 
 		s.collectCoverage(s.Page)
 		s.MustClose()
@@ -67,7 +67,7 @@ func (s *InactivityScenario) TestShouldRequireReauthenticationAfterInactivityPer
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	targetURL := fmt.Sprintf("%s/secret.html", AdminBaseURL)
@@ -86,7 +86,7 @@ func (s *InactivityScenario) TestShouldRequireReauthenticationAfterCookieExpirat
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	targetURL := fmt.Sprintf("%s/secret.html", AdminBaseURL)
@@ -113,7 +113,7 @@ func (s *InactivityScenario) TestShouldDisableCookieExpirationAndInactivity() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	targetURL := fmt.Sprintf("%s/secret.html", AdminBaseURL)

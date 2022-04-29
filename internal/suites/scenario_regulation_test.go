@@ -52,7 +52,7 @@ func (s *RegulationScenario) TestShouldBanUserAfterTooManyAttempt() {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	s.doVisitLoginPage(s.T(), s.Context(ctx), "")

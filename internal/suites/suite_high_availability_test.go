@@ -52,7 +52,7 @@ func (s *HighAvailabilityWebDriverSuite) TestShouldKeepUserSessionActive() {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	secret := s.doRegisterThenLogout(s.T(), s.Context(ctx), "john", "password")
@@ -68,7 +68,7 @@ func (s *HighAvailabilityWebDriverSuite) TestShouldKeepUserSessionActiveWithPrim
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	secret := s.doRegisterThenLogout(s.T(), s.Context(ctx), "john", "password")
@@ -103,7 +103,7 @@ func (s *HighAvailabilityWebDriverSuite) TestShouldKeepUserSessionActiveWithPrim
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	secret := s.doRegisterThenLogout(s.T(), s.Context(ctx), "john", "password")
@@ -139,7 +139,7 @@ func (s *HighAvailabilityWebDriverSuite) TestShouldKeepUserDataInDB() {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	secret := s.doRegisterThenLogout(s.T(), s.Context(ctx), "john", "password")
@@ -155,7 +155,7 @@ func (s *HighAvailabilityWebDriverSuite) TestShouldKeepSessionAfterAutheliaResta
 	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	secret := s.doRegisterAndLogin2FA(s.T(), s.Context(ctx), "john", "password", false, "")
@@ -241,7 +241,7 @@ func (s *HighAvailabilityWebDriverSuite) TestShouldVerifyAccessControl() {
 		return func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 			defer func() {
-				s.collectScreenshot(ctx.Err(), s.Page)
+				s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 				cancel()
 			}()
 

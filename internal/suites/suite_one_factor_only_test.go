@@ -55,7 +55,7 @@ func (s *OneFactorOnlyWebSuite) TestShouldRedirectUserToDefaultURL() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	s.doLoginOneFactor(s.T(), s.Context(ctx), "john", "password", false, "")
@@ -67,7 +67,7 @@ func (s *OneFactorOnlyWebSuite) TestShouldRedirectUserToDefaultURLWhenURLIsUnsaf
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	s.doLoginOneFactor(s.T(), s.Context(ctx), "john", "password", false, "http://unsafe.local")
@@ -79,7 +79,7 @@ func (s *OneFactorOnlyWebSuite) TestShouldDisplayAuthenticatedView() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	s.doLoginOneFactor(s.T(), s.Context(ctx), "john", "password", false, "")
@@ -92,7 +92,7 @@ func (s *OneFactorOnlyWebSuite) TestShouldRedirectAlreadyAuthenticatedUser() {
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	s.doLoginOneFactor(s.T(), s.Context(ctx), "john", "password", false, "")
@@ -107,7 +107,7 @@ func (s *OneFactorOnlyWebSuite) TestShouldNotRedirectAlreadyAuthenticatedUserToU
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer func() {
 		cancel()
-		s.collectScreenshot(ctx.Err(), s.Page)
+		s.collectScreenshotDeadlineExceeded(ctx.Err(), s.Page)
 	}()
 
 	s.doLoginOneFactor(s.T(), s.Context(ctx), "john", "password", false, "")
