@@ -28,10 +28,12 @@ func (rs *RodSession) doRegisterTOTP(t *testing.T, page *rod.Page) string {
 }
 
 func (rs *RodSession) doEnterOTP(t *testing.T, page *rod.Page, code string) {
+	rs.collectScreenshot(page, "before")
+
 	inputs := rs.WaitElementsLocatedByID(t, page, "otp-input input")
 
 	if len(inputs) != len(code) {
-		rs.collectScreenshot(page)
+		rs.collectScreenshot(page, "after")
 	}
 
 	require.Len(t, inputs, len(code))

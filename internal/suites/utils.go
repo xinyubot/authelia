@@ -48,7 +48,7 @@ func (rs *RodSession) collectCoverage(page *rod.Page) {
 	}
 }
 
-func (rs *RodSession) collectScreenshot(page *rod.Page) {
+func (rs *RodSession) collectScreenshot(page *rod.Page, suffix string) {
 	if os.Getenv("CI") == t {
 		base := "/buildkite/screenshots"
 		build := os.Getenv("BUILDKITE_BUILD_NUMBER")
@@ -65,13 +65,18 @@ func (rs *RodSession) collectScreenshot(page *rod.Page) {
 		p := "github.com/authelia/authelia/v4/internal/suites."
 		r := strings.NewReplacer(p, "", "(", "", ")", "", "*", "", ".", "-")
 
-		page.MustScreenshotFullPage(fmt.Sprintf("%s/%s.jpg", path, r.Replace(fn.Name())))
+		fileName := r.Replace(fn.Name())
+		if suffix != "" {
+			fileName += "_" + suffix
+		}
+
+		page.MustScreenshotFullPage(fmt.Sprintf("%s/%s.jpg", path, fileName))
 	}
 }
 
 func (rs *RodSession) collectScreenshotDeadlineExceeded(err error, page *rod.Page) {
 	if err == context.DeadlineExceeded {
-		rs.collectScreenshot(page)
+		rs.collectScreenshot(page, "")
 	}
 }
 
