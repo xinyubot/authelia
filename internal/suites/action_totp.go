@@ -30,6 +30,8 @@ func (rs *RodSession) doRegisterTOTP(t *testing.T, page *rod.Page) string {
 func (rs *RodSession) doEnterOTP(t *testing.T, page *rod.Page, code string) {
 	inputs := rs.WaitElementsLocatedByID(t, page, "otp-input input")
 
+	require.Len(t, inputs, len(code))
+
 	for i := 0; i < len(code); i++ {
 		_ = inputs[i].MustPress(rune(code[i]))
 	}

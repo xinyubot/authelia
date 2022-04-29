@@ -5,9 +5,19 @@ for SUITE_NAME in $(authelia-scripts suites list); do
 cat << EOF
   - label: ":selenium: ${SUITE_NAME} Suite"
     command: "authelia-scripts --log-level debug suites test ${SUITE_NAME} --failfast --headless"
+EOF
+if [[ "${SUITE_NAME}" = "Traefik2" ]]; then
+cat << EOF
+    retry:
+      manual:
+        permit_on_passed: true
+EOF
+else
+cat << EOF
     retry:
       automatic: true
 EOF
+fi
 if [[ "${SUITE_NAME}" = "ActiveDirectory" ]]; then
 cat << EOF
     agents:
