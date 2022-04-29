@@ -29,7 +29,7 @@ func (s *Traefik2Suite) TestCustomHeaders() {
 	suite.Run(s.T(), NewCustomHeadersScenario())
 }
 
-func (s *Traefik2Suite) TestXLastShouldKeepSessionAfterRedisRestart() {
+func (s *Traefik2Suite) TestShouldKeepSessionAfterRedisRestart() {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer func() {
 		cancel()
