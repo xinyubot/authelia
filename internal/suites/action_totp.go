@@ -28,7 +28,7 @@ func (rs *RodSession) doRegisterTOTP(t *testing.T, page *rod.Page) string {
 }
 
 func (rs *RodSession) doEnterOTP(t *testing.T, page *rod.Page, code string) {
-	rs.collectScreenshot(page, "before")
+	require.NoError(t, page.MustElement("#otp-input").WaitStable(time.Millisecond*100))
 
 	inputs := rs.WaitElementsLocatedByID(t, page, "otp-input input")
 
