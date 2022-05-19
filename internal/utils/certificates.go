@@ -48,6 +48,27 @@ func NewTLSConfig(config *schema.TLSConfig, defaultMinVersion uint16, certPool *
 	}
 }
 
+// NewX509CertPoolFromFileNames returns a *x509.CertPool or error given a number of file names.
+func NewX509CertPoolFromFileNames(fileNames []string) (certPool *x509.CertPool, err error) {
+	if len(fileNames) <= 0 {
+		return nil, nil
+	}
+
+	certPool = x509.NewCertPool()
+
+	var data []byte
+
+	for _, fileName := range fileNames {
+		if data, err = os.ReadFile(fileName); err != nil {
+			return nil, fmt.Errorf("can't read certificate file '%s': %w", fileName, err)
+		}
+
+		certPool.AppendCertsFromPEM(data)
+	}
+
+	return certPool, nil
+}
+
 // NewX509CertPool generates a x509.CertPool from the system PKI and the directory specified.
 func NewX509CertPool(directory string) (certPool *x509.CertPool, warnings []error, errors []error) {
 	certPool, err := x509.SystemCertPool()

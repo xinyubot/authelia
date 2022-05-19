@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
-	"os"
 	"strconv"
 
 	"github.com/valyala/fasthttp"
@@ -12,6 +11,7 @@ import (
 	"github.com/authelia/authelia/v4/internal/configuration/schema"
 	"github.com/authelia/authelia/v4/internal/logging"
 	"github.com/authelia/authelia/v4/internal/middlewares"
+	"github.com/authelia/authelia/v4/internal/utils"
 )
 
 // CreateServer Create Authelia's internal webserver with the given configuration and providers.
@@ -38,29 +38,28 @@ func CreateServer(config schema.Configuration, providers middlewares.Providers) 
 	if config.Server.TLS.Certificate != "" && config.Server.TLS.Key != "" {
 		connectionType, connectionScheme = "TLS", schemeHTTPS
 
-		if err = server.AppendCert(config.Server.TLS.Certificate, config.Server.TLS.Key); err != nil {
-			logger.Fatalf("unable to load certificate: %v", err)
+		tlsConf := &tls.Config{}
+
+		var cert tls.Certificate
+
+		if cert, err = tls.LoadX509KeyPair(config.Server.TLS.Certificate, config.Server.TLS.Key); err != nil {
+			logger.Fatalf("unable to load X509 key pair: %v", err)
 		}
 
-		if len(config.Server.TLS.ClientCertificates) > 0 {
-			caCertPool := x509.NewCertPool()
+		tlsConf.Certificates = append(tlsConf.Certificates, cert)
 
-			for _, path := range config.Server.TLS.ClientCertificates {
-				cert, err := os.ReadFile(path)
-				if err != nil {
-					logger.Fatalf("Cannot read client TLS certificate %s: %s", path, err)
-				}
+		var certPool *x509.CertPool
 
-				caCertPool.AppendCertsFromPEM(cert)
-			}
-
-			// ClientCAs should never be nil, otherwise the system cert pool is used for client authentication
-			// but we don't want everybody on the Internet to be able to authenticate.
-			server.TLSConfig.ClientCAs = caCertPool
-			server.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		if certPool, err = utils.NewX509CertPoolFromFileNames(config.Server.TLS.ClientCertificates); err != nil {
+			logger.Fatalf("Cannot load client TLS certificates: %v", err)
 		}
 
-		if listener, err = tls.Listen("tcp", address, server.TLSConfig.Clone()); err != nil {
+		if certPool != nil {
+			tlsConf.ClientCAs = certPool
+			tlsConf.ClientAuth = tls.RequireAndVerifyClientCert
+		}
+
+		if listener, err = tls.Listen("tcp", address, tlsConf); err != nil {
 			logger.Fatalf("Error initializing listener: %s", err)
 		}
 	} else {
