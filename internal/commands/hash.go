@@ -9,7 +9,6 @@ import (
 	"github.com/authelia/authelia/v4/internal/authentication"
 	"github.com/authelia/authelia/v4/internal/configuration"
 	"github.com/authelia/authelia/v4/internal/configuration/schema"
-	"github.com/authelia/authelia/v4/internal/logging"
 )
 
 // NewHashPasswordCmd returns a new Hash Password Cmd.
@@ -17,10 +16,11 @@ func NewHashPasswordCmd() (cmd *cobra.Command) {
 	cmd = &cobra.Command{
 		Use:   "hash-password [password]",
 		Short: "Hash a password to be used in file-based users database. Default algorithm is argon2id.",
-		Args:  cobra.MinimumNArgs(1),
-		Run:   cmdHashPasswordRun,
+		Args:  cobra.MaximumNArgs(1),
+		RunE:  cmdHashPasswordRunE,
 	}
 
+	cmd.Flags().String("password", "", "set the password, can also be set as the first argument")
 	cmd.Flags().BoolP("sha512", "z", false, fmt.Sprintf("use sha512 as the algorithm (changes iterations to %d, change with -i)", schema.DefaultPasswordSHA512Configuration.Iterations))
 	cmd.Flags().IntP("iterations", "i", schema.DefaultPasswordConfiguration.Iterations, "set the number of hashing iterations")
 	cmd.Flags().StringP("salt", "s", "", "set the salt string")
@@ -33,8 +33,20 @@ func NewHashPasswordCmd() (cmd *cobra.Command) {
 	return cmd
 }
 
-func cmdHashPasswordRun(cmd *cobra.Command, args []string) {
-	logger := logging.Logger()
+func cmdHashPasswordRunE(cmd *cobra.Command, args []string) (err error) {
+	var (
+		password, hash string
+		algorithm      authentication.CryptAlgo
+	)
+
+	switch {
+	case cmd.Flags().Changed("password") && len(args) == 0:
+		password, _ = cmd.Flags().GetString("password")
+	case len(args) == 1:
+		password = args[0]
+	default:
+		return fmt.Errorf("you must set the password either via the final argument or via the --password flag")
+	}
 
 	sha512, _ := cmd.Flags().GetBool("sha512")
 	iterations, _ := cmd.Flags().GetInt("iterations")
@@ -48,9 +60,8 @@ func cmdHashPasswordRun(cmd *cobra.Command, args []string) {
 	if len(configs) > 0 {
 		val := schema.NewStructValidator()
 
-		_, config, err := configuration.Load(val, configuration.NewDefaultSources(configs, configuration.DefaultEnvPrefix, configuration.DefaultEnvDelimiter)...)
-		if err != nil {
-			logger.Fatalf("Error occurred loading configuration: %v", err)
+		if _, config, err = configuration.Load(val, configuration.NewDefaultSources(configs, configuration.DefaultEnvPrefix, configuration.DefaultEnvDelimiter)...); err != nil {
+			return fmt.Errorf("error occurred loading configuration: %w", err)
 		}
 
 		if config.AuthenticationBackend.File != nil && config.AuthenticationBackend.File.Password != nil {
@@ -62,11 +73,6 @@ func cmdHashPasswordRun(cmd *cobra.Command, args []string) {
 			parallelism = config.AuthenticationBackend.File.Password.Parallelism
 		}
 	}
-
-	var (
-		hash      string
-		algorithm authentication.CryptAlgo
-	)
 
 	if sha512 {
 		if iterations == schema.DefaultPasswordConfiguration.Iterations {
@@ -82,10 +88,11 @@ func cmdHashPasswordRun(cmd *cobra.Command, args []string) {
 		salt = crypt.Base64Encoding.EncodeToString([]byte(salt))
 	}
 
-	hash, err := authentication.HashPassword(args[0], salt, algorithm, iterations, memory*1024, parallelism, keyLength, saltLength)
-	if err != nil {
-		logging.Logger().Fatalf("Error occurred during hashing: %v\n", err)
+	if hash, err = authentication.HashPassword(password, salt, algorithm, iterations, memory*1024, parallelism, keyLength, saltLength); err != nil {
+		return fmt.Errorf("error occurred during password hashing: %w", err)
 	}
 
 	fmt.Printf("Password hash: %s\n", hash)
+
+	return nil
 }
